@@ -8,6 +8,18 @@ import chatRoomRoutes from "./routes/chatRoom";
 import { setupSocket } from "./websocket/setupSocket";
 import helmet from "helmet";
 import logger from "./utils/logger";
+import rateLimit from "express-rate-limit";
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, 
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Too many requests from this IP, please try again later."
+  }
+});
+
 import { Request, Response, NextFunction } from "express";
 
 dotenv.config();
@@ -42,6 +54,9 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
+
+
+app.use("/api/", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/chatroom", chatRoomRoutes);
 
