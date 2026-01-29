@@ -7,15 +7,16 @@ import authRoutes from "./routes/auth";
 import chatRoomRoutes from "./routes/chatRoom";
 import { setupSocket } from "./websocket/setupSocket";
 import helmet from "helmet";
+import { Request, Response, NextFunction } from "express";
 
 dotenv.config();
-
 
 const app = express();
 const PORT = process.env.PORT || 8000;
 
-
-const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000").split(",").map(origin => origin.trim());
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim());
 
 app.use(
   cors({
@@ -28,11 +29,17 @@ app.use(
       }
     },
     credentials: true,
-  })
+  }),
 );
-app.use(cors());
 app.use(helmet());
 app.use(express.json());
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(err);
+  res.status(err.status || 500).json({
+    message: err.message || "Internal Server Error",
+    ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+  });
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/chatroom", chatRoomRoutes);
@@ -42,7 +49,6 @@ app.get("/", (_req, res) => {
 });
 
 const httpServer = createServer(app);
-
 
 const io = new Server(httpServer, {
   cors: {
