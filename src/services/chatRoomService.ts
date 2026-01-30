@@ -1,14 +1,32 @@
-import { PrismaClient, User } from "@prisma/client";
+import { PrismaClient, User, ChatRoom } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export async function createChatRoom(name: string, user: User) {
+export async function createRoom(name: string, user: User) {
   const existing = await prisma.chatRoom.findUnique({ where: { name } });
   if (existing) throw new Error("A Chatroom of this name already exists");
   const creatorId = user.id;
   return prisma.chatRoom.create({
     data: { name, creatorId },
   });
+}
+
+export async function deleteRoom( id:number){
+  const chatRoom : ChatRoom | null = await prisma.chatRoom.findUnique({ where: { id } });
+  if(!chatRoom) throw new Error("Chatroom does not exist");
+
+  await prisma.chatRoom.update({ where: {id : chatRoom.id },
+  data: {deleted: true},
+  });
+
+  const deleteResult = await prisma.message.updateMany({ where: {chatRoomId : chatRoom.id},
+  data: {deleted: true},
+  })
+
+  return {
+    deletedCount: deleteResult.count,
+    chatRoomName: chatRoom.name,
+  }
 }
 
 export async function listChatRooms() {

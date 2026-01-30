@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
-import { createChatRoom, listChatRooms } from "../services/chatRoomService";
+import { createRoom, listChatRooms, deleteRoom } from "../services/chatRoomService";
 
-export async function create(req: Request, res: Response) {
+export async function createChatRoom(req: Request, res: Response) {
   try {
     const { name } = req.body;
     const user = req.user;
@@ -10,14 +10,14 @@ export async function create(req: Request, res: Response) {
       return res.status(400).json({ message: "Chat room name is required" });
     }
 
-    if (!user) {
-      return res.status(400).json({ message: "user does not have permission" });
+    if(!user){
+      throw new Error("invalid user");
     }
 
-    const createdChatRoom = await createChatRoom(name, user);
+    const createdChatRoom = await createRoom(name, user);
     const chatRoomList = await listChatRooms();
     res.status(201).json({
-      createdChatRoom,
+      message: `chatroom: ${name} has been created`, 
       chatRoomList,
     });
   } catch (error: any) {
@@ -30,6 +30,23 @@ export async function list(req: Request, res: Response) {
     const chatRoomList = await listChatRooms();
     res.status(200).json(chatRoomList);
   } catch (error: any) {
+    res.status(400).json({ message: error.message });
+  }
+}
+
+export async function deleteChatRoom(req: Request, res: Response){
+  try{
+    const { id } = req.body;
+
+    const results = await deleteRoom(id)
+    const chatRoomList = await listChatRooms();
+
+
+    res.status(201).json({
+      message: `chatRoom: ${results.chatRoomName} has been deleted along with ${results.deletedCount} containted messages`,
+      chatRoomList,
+    })
+  } catch (error: any){
     res.status(400).json({ message: error.message });
   }
 }

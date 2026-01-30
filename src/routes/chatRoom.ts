@@ -3,7 +3,7 @@ import {
   authenticateToken,
   authenticateAdmin,
 } from "../middleware/authMiddleware";
-import { create, list } from "../controllers/chatRoomController";
+import { createChatRoom, list, deleteChatRoom } from "../controllers/chatRoomController";
 import { body } from "express-validator";
 import { validateRequest } from "../middleware/validateRequest";
 
@@ -21,8 +21,11 @@ router.post(
     validateRequest,
   ],
   authenticateAdmin,
-  create,
+  createChatRoom,
 );
+
+router.post("/delete", authenticateAdmin, deleteChatRoom);
+
 router.get("/list", list);
 
 export default router;

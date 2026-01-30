@@ -24,6 +24,8 @@
     "prisma": "^6.19.2",
     "socket.io": "^4.8.3",
     "socketio": "^1.0.0",
+    "swagger-autogen": "^2.23.7",
+    "swagger-ui": "^5.31.0",
     "winston": "^3.19.0"
   },
   "devDependencies": {
@@ -43,8 +45,7 @@
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3"
-  }
-  ,
+  },
   "ts-node": {
     "files": true
   }
