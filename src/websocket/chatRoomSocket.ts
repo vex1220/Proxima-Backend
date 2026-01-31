@@ -1,11 +1,10 @@
 import { Server, Socket } from "socket.io";
 import { User } from "@prisma/client";
 import {
-  createMessage,
   getChatRoomById,
   getLastFiftyMessages,
 } from "../services/chatRoomService";
-import { emit } from "process";
+import { createMessage } from "../services/messageService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -31,7 +30,7 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
       message: `${user.displayId} has joined room ${chatRoom.name}`,
     });
 
-    const lastMessages = await getLastFiftyMessages(roomId);
+    const lastMessages = await getLastFiftyMessages(roomId, user.id);
 
     io.emit("messageHistory", {});
 
@@ -54,12 +53,6 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
   socket.on("sendMessage", async ({ roomId, content }) => {
     const message = await createMessage(roomId, user.id, content);
 
-    io.to(String(roomId)).emit("receiveMessage", {
-      roomId,
-      content: message.content,
-      senderDisplayId: message.sender.displayId,
-      timestamp: message.createdAt,
-      message: `${message.content}`,
-    });
+    io.to(String(roomId)).emit("receiveMessage", message);
   });
 }
