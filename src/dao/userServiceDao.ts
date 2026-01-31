@@ -10,11 +10,18 @@ export async function createUserDao(
   });
 }
 
-export async function deleteUserDao(id: number) {
+export async function setUserDeletedDao(id: number) {
   return prisma.user.update({
     where: { id },
-    data: { deleted: false },
+    data: { deleted: true },
   });
+}
+
+export async function setUserDisplayIdDao(name: string, id: number){
+  return prisma.user.update({
+    where: { id },
+    data: {displayId: name}
+  })
 }
 
 export async function getUserByIdDao(id: number) {

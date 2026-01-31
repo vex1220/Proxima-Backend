@@ -20,7 +20,7 @@ export async function authenticateToken(
       return res.status(403).json({ message: "user no longer exists" });
     }
 
-    (req as any).user = user;
+    req.user = user;
     next();
   } catch (err) {
     return res.status(403).json({ message: "Invalid or expired token" });

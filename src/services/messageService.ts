@@ -4,7 +4,9 @@ import {
   deleteMessageDao,
   deleteMessagesByChatroomDao,
   deleteMessagesByUserDao,
+  getLatestMessagesByChatRoomDao,
 } from "../dao/messageDao";
+import { get } from "http";
 
 export async function createMessage(
   chatRoomId: number,
@@ -33,5 +35,14 @@ export async function getLastestMessagesByChatRoom(
   chatRoomId: number,
   count: number,
 ): Promise<(Message & { sender: { displayId: string } })[]> {
-  return await getLastestMessagesByChatRoom(chatRoomId, count);
+  const messages = await getLatestMessagesByChatRoomDao(chatRoomId, count);
+  return messages.map((message) => ({
+    ...message,
+    sender: {
+      ...message.sender,
+      displayId: message.sender.deleted
+        ? "User no Longer exists"
+        : message.sender.displayId,
+    },
+  }));
 }

@@ -1,10 +1,11 @@
 import { User } from "@prisma/client";
 import {
   createUserDao,
-  deleteUserDao,
+  setUserDeletedDao,
   getUserByDisplayIdDao,
   getUserByEmailDao,
   getUserByIdDao,
+  setUserDisplayIdDao,
 } from "../dao/userServiceDao";
 import prisma from "../utils/prisma";
 import { deleteMessagesByUser } from "./messageService";
@@ -17,8 +18,8 @@ export async function createUser(
   return await createUserDao(email, displayId, password);
 }
 
-export async function deleteUser(user: User) {
-  return await deleteUserDao(user.id);
+export async function setUserDeleted(user: User) {
+  return await setUserDeletedDao(user.id);
 }
 
 export async function userExists(
@@ -43,4 +44,8 @@ export async function getUserByDisplayId(name: string) {
 export async function userNameInUse(name: string): Promise<boolean> {
   const user = await getUserByDisplayId(name);
   return !!user && !user.deleted;
+}
+
+export async function setUserDisplayId(name : string, user : User){
+return await setUserDisplayIdDao(name, user.id);
 }

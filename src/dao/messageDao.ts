@@ -47,7 +47,7 @@ export async function getLatestMessagesByChatRoomDao(
     orderBy: { createdAt: "desc" },
     take: count,
     include: {
-      sender: { select: { displayId: true } },
+      sender: { select: { displayId: true, deleted: true } },
     },
   });
 }
