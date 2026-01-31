@@ -4,7 +4,11 @@ import {
   getChatRoomById,
   getLastFiftyMessages,
 } from "../services/chatRoomService";
-import { createMessage } from "../services/messageService";
+import {
+  createMessage,
+  deleteMessage,
+  getMessageById,
+} from "../services/messageService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -32,8 +36,6 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
 
     const lastMessages = await getLastFiftyMessages(roomId, user.id);
 
-    io.emit("messageHistory", {});
-
     socket.emit("joinedRoom", { chatRoom, lastMessages });
   });
 
@@ -51,8 +53,37 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
   });
 
   socket.on("sendMessage", async ({ roomId, content }) => {
-    const message = await createMessage(roomId, user.id, content);
+    try {
+      const message = await createMessage(roomId, user.id, content);
 
-    io.to(String(roomId)).emit("receiveMessage", message);
+      io.to(String(roomId)).emit("receiveMessage", message);
+    } catch (error: any) {
+      socket.emit("error", "An unexpected error has occured");
+    }
   });
+
+  socket.on("deleteMessage", async ({ roomId, messageId }) => {
+    try {
+      const message = await getMessageById(messageId);
+
+      if (!message) {
+        return socket.emit("error", "Message not found");
+      }
+
+      if (user.id != message.senderId && !user.isAdmin) {
+        return socket.emit("error", "Action not Authorized");
+      }
+
+      await deleteMessage(message);
+
+      const updatedMessage = await getMessageById(messageId);
+
+      io.to(String(roomId)).emit("updateMessage", updatedMessage);
+    } catch (error: any) {
+      socket.emit("error", "An unexpected error has occured");
+    }
+  });
+
+
+  //todo eventually, add logic for deleting all of your message by the user, and add a edit message event
 }

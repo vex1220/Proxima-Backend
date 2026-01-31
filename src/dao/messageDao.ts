@@ -38,12 +38,18 @@ export async function deleteMessagesByUserDao(userId: number) {
   });
 }
 
+export async function getMessageByIdDao(messageId: number){
+  return prisma.message.findUnique({
+    where: {id : messageId },
+  });
+}
+
 export async function getLatestMessagesByChatRoomDao(
   chatRoomId: number,
   count: number,
 ) {
   return prisma.message.findMany({
-    where: { chatRoomId, deleted: false },
+    where: { chatRoomId},
     orderBy: { createdAt: "desc" },
     take: count,
     include: {
