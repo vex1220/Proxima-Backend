@@ -1,6 +1,7 @@
 import { Request, response, Response } from "express";
 import {
   getUserByDisplayId,
+  getUserById,
   setUserDeleted,
   setUserDisplayId,
   userNameInUse,
@@ -11,14 +12,14 @@ export async function deleteUser(req: Request, res: Response) {
     const { userId } = req.body;
     const user = req.user;
 
-    const userToDelete = await getUserByDisplayId(userId);
+    const userToDelete = await getUserById(userId);
 
     if (!userToDelete) {
       return res.status(404).json({ message: "User Not Found" });
     }
 
     if (!user) {
-      return res.status(401).json({ message: "action not Authorized" });
+      return res.status(401).json({ message: "request from user that does not exist" });
     }
 
     if (user.id != userId && !user.isAdmin) {
@@ -42,10 +43,10 @@ export async function changeUsername(req: Request, res: Response) {
     const user = req.user;
 
     if (!user) {
-      return res.status(401).json({ message: "action not Authorized" });
+      return res.status(401).json({ message: "request from user that does not exist" });
     }
 
-    if (await(!userNameInUse(newUserName))){
+    if (await(userNameInUse(newUserName))){
         return res.status(409).json({ message: "Username already in use"})
     }
 

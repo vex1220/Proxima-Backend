@@ -42,7 +42,7 @@ export async function getUserByDisplayId(name: string) {
 }
 
 export async function userNameInUse(name: string): Promise<boolean> {
-  const user = await getUserByDisplayId(name);
+  const user = await getUserByDisplayIdDao(name);
   return !!user && !user.deleted;
 }
 

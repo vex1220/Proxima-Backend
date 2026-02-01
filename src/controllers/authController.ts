@@ -26,7 +26,7 @@ export async function login(req: Request, res: Response) {
       accessToken,
       refreshToken,
     } = await loginUser(email, password);
-    return res.status(201).json({
+    return res.status(200).json({
       message: "User Logged in Successfully",
       user: { email: userEmail },
       accessToken,
