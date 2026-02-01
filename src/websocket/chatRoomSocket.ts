@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io";
-import { User } from "@prisma/client";
+import { Message, User } from "@prisma/client";
 import {
   getChatRoomById,
   getLastFiftyMessages,
@@ -9,6 +9,7 @@ import {
   deleteMessage,
   getMessageById,
 } from "../services/messageService";
+import { getUserByDisplayId } from "../services/userService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -56,7 +57,17 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
     try {
       const message = await createMessage(roomId, user.id, content);
 
-      io.to(String(roomId)).emit("receiveMessage", message);
+      const messageToSend = {
+        ...message,
+        chatRoomId: roomId,
+        content: message.content,
+        senderDisplayId: message.sender.displayId,
+        timestamp: message.createdAt,
+        messageId: message.id,
+        isOwnMessage: message.senderId == user.id,
+      };
+
+      io.to(String(roomId)).emit("receiveMessage", messageToSend);
     } catch (error: any) {
       socket.emit("error", "An unexpected error has occured");
     }
@@ -83,7 +94,6 @@ export function setupChatSocket(io: Server, socket: Socket, user: User) {
       socket.emit("error", "An unexpected error has occured");
     }
   });
-
 
   //todo eventually, add logic for deleting all of your message by the user, and add a edit message event
 }
