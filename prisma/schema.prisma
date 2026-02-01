@@ -17,6 +17,15 @@ model User {
   deleted   Boolean    @default(false)
   messages  Message[]
   chatRooms ChatRoom[]
+  preferences User_Settings?
+}
+
+model User_Settings{
+  id Int @id @default(autoincrement())
+  userId Int @unique
+  broadcastRadius Int @default(2)
+  recieveRadius Int @default(2)
+  user User? @relation(fields: [userId], references: [id])
 }
 
 model ChatRoom {
@@ -25,6 +34,8 @@ model ChatRoom {
   name      String
   deleted   Boolean   @default(false)
   creatorId Int?
+  latitude  Float?
+  longitude Float?
   creator   User?     @relation(fields: [creatorId], references: [id])
   messages  Message[]
 }

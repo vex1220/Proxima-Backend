@@ -9,14 +9,13 @@ import {
   deleteMessage,
   getMessageById,
 } from "../services/messageService";
-import { getUserByDisplayId } from "../services/userService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
   return room ? room.size : 0;
 }
 
-export function setupChatSocket(io: Server, socket: Socket, user: User) {
+export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
   socket.on("joinRoom", async (roomId: number) => {
     const chatRoom = await getChatRoomById(roomId);
     if (!chatRoom) {
