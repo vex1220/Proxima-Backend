@@ -4,6 +4,11 @@ import {
   getChatRoomById,
   getLastFiftyMessages,
 } from "../services/chatRoomService";
+import {
+  createMessage,
+  deleteMessage,
+  getMessageById,
+} from "../services/messageService";
 import { getUserByDisplayId } from "../services/userService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 
@@ -14,6 +19,7 @@ function getUserCount(io: Server, roomId: string) {
 
 const chatRoomMessageService = new ChatRoomMessageService();
 
+export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
 export function setupChatSocket(io: Server, socket: Socket, user: User) {
 
   socket.on("joinRoom", async (roomId: number) => {

@@ -1,7 +1,8 @@
 import { Server } from "socket.io";
 import { userFromAccessToken } from "../services/authService";
-import { setupChatSocket } from "./chatRoomSocket";
-import { Socket } from "socket.io-client";
+import { setupChatRoomSocket } from "./chatRoomSocket";
+import { UserWithPreferences } from "../models/userTypes";
+import { setupProximitySocket } from "./proximitySocket";
 
 export function setupSocket(io: Server) {
   io.use(async (socket, next) => {
@@ -31,7 +32,8 @@ export function setupSocket(io: Server) {
 
     console.log(`User ${user.displayId} connected via WebSocket`);
 
-    setupChatSocket(io,socket,user);
+    setupChatRoomSocket(io,socket,user);
+    setupProximitySocket(io,socket,user);
 
     socket.on("disconnect", () => {
       console.log(`User ${user.displayId} disconnected`);
