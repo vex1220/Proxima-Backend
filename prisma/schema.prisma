@@ -15,7 +15,7 @@ model User {
   isAdmin   Boolean    @default(false)
   password  String
   deleted   Boolean    @default(false)
-  messages  Message[]
+  messages  ChatRoomMessage[]
   chatRooms ChatRoom[]
 }
 
@@ -26,10 +26,10 @@ model ChatRoom {
   deleted   Boolean   @default(false)
   creatorId Int?
   creator   User?     @relation(fields: [creatorId], references: [id])
-  messages  Message[]
+  messages  ChatRoomMessage[]
 }
 
-model Message {
+model ChatRoomMessage {
   id         Int      @id @default(autoincrement())
   createdAt  DateTime @default(now())
   content    String

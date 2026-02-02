@@ -7,8 +7,6 @@ import {
   getUserByIdDao,
   setUserDisplayIdDao,
 } from "../dao/userServiceDao";
-import prisma from "../utils/prisma";
-import { deleteMessagesByUser } from "./messageService";
 
 export async function createUser(
   email: string,
