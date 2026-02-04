@@ -23,6 +23,6 @@ router.post(
   changeUsername,
 );
 
-router.post("/me",userDetails);
+router.get("/me",userDetails);
 
 export default router;
