@@ -5,12 +5,12 @@ export async function createUserDao(
   displayId: string,
   password: string,
 ) {
-  const createdUser = prisma.user.create({
+  const createdUser = await prisma.user.create({
     data: { email, displayId, password },
   });
 
-  const createUserSettings = prisma.user_Settings.create({
-    data: {userId : (await createdUser).id, proximityRadius: 1600},
+  const createUserSettings = await prisma.user_Settings.create({
+    data: {userId : createdUser.id, proximityRadius: 1600},
   });
 
   return createdUser;
