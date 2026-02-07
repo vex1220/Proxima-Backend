@@ -79,6 +79,7 @@ export async function userDetails(req: Request, res: Response) {
       email: user.email,
       created: user.createdAt,
       message: "user details retrieved",
+      isAdmin: user.isAdmin,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
