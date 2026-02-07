@@ -38,8 +38,8 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
   async createProximityMessage(
     senderId: number,
     content: string,
-    longitude: number,
     latitude: number,
+    longitude: number,
   ) {
     return prisma.proximityMessage.create({
       data: {
