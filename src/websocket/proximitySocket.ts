@@ -92,10 +92,13 @@ export function setupProximitySocket(
         );
         console.log("[sendProximityMessage] Broadcasting to users:", usersToBroadCastTo);
 
-        io.to(usersToBroadCastTo).emit(
-          "receiveProximityMessage",
-          messageToSend,
-        );
+        if (Array.isArray(usersToBroadCastTo)) {
+          usersToBroadCastTo.forEach(socketId => {
+            io.to(socketId).emit("receiveProximityMessage", messageToSend);
+          });
+        } else if (typeof usersToBroadCastTo === "string") {
+          io.to(usersToBroadCastTo).emit("receiveProximityMessage", messageToSend);
+        }
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
         socket.emit("error", "An unexpected error has occured");
