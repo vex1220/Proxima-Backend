@@ -21,7 +21,7 @@ export async function getChatRoomByNameDao(name: string) {
 export async function getAllChatRoomsDao() {
   return prisma.chatRoom.findMany({
     where: {deleted : false},
-    select: { id: true, name: true},
+    select: { id: true, name: true,longitude: true, latitude: true, size: true },
     orderBy: { createdAt: "desc" },
   });
 }
