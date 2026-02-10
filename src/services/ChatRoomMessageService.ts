@@ -43,6 +43,10 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
     );
   }
 
+  updateMessageKarma(messageId:number, karmaChange:number):Promise<ChatRoomMessage | null> {
+   return chatRoomMessageDao.updateMessageKarma(messageId, karmaChange); 
+  }
+
   async getLatestChatRoomMessagesByChatRoom(
     chatRoomId: number,
     count: number,
