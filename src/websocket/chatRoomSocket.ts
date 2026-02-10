@@ -130,7 +130,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         return socket.emit("error", "Message is deleted");
       }
 
-      if(vote!= 1 || vote != -1){
+      if(vote!= 1 && vote != -1){
         return socket.emit("error", "cant vote on a message by more than 1 or less than -1");
       }
 
