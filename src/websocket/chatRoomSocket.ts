@@ -56,7 +56,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
     socket.emit("joinedRoom", { chatRoom, lastMessages });
   });
 
-  socket.on("disconnecting", () => {
+  socket.on("leaveRoom", () => {
     socket.rooms.forEach((roomId) => {
       if (roomId !== socket.id) {
         const userCount = getUserCount(io, roomId) - 1;
@@ -85,6 +85,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         timestamp: message.createdAt,
         messageId: message.id,
         karma: message.karma,
+        userId:user.id,
       };
 
       io.to(String(roomId)).emit("receiveMessage", messageToSend);

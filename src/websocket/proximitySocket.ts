@@ -69,7 +69,7 @@ export function setupProximitySocket(
           senderDisplayId: message.sender.displayId,
           timestamp: message.createdAt,
           messageId: message.id,
-          isOwnMessage: message.senderId == user.id,
+          userId: user.id,
         };
 
 
