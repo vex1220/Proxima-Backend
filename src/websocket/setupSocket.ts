@@ -48,6 +48,7 @@ export function setupSocket(io: Server) {
 
     socket.on("disconnect", () => {
       delete userSocketMap[user.id]
+      socket.disconnect();
       console.log(`User ${user.displayId} disconnected`);
     });
   });
