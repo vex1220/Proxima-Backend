@@ -48,6 +48,5 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
 
   return messages.map((message: ChatRoomMessage) => ({
     ...message,
-    isOwnMessage: message.senderId == userId,
   }));
 }

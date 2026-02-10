@@ -48,6 +48,8 @@ model ChatRoomMessage {
   content    String
   chatRoomId Int
   senderId   Int
+  isReply    Boolean  @default(false)
+  replyToId  Int?
   deleted    Boolean  @default(false)
   chatRoom   ChatRoom @relation(fields: [chatRoomId], references: [id])
   sender     User     @relation(fields: [senderId], references: [id])
