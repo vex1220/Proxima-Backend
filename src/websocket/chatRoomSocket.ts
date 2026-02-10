@@ -85,7 +85,6 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         timestamp: message.createdAt,
         messageId: message.id,
         karma: message.karma,
-        isOwnMessage: message.senderId == user.id,
       };
 
       io.to(String(roomId)).emit("receiveMessage", messageToSend);
