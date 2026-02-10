@@ -64,6 +64,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
           displayId: user.displayId,
           message: `${user.displayId} has left the room`,
         });
+         socket.leave(roomId);
       }
     });
   });
