@@ -4,6 +4,7 @@ import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
 import { User_Settings } from "@prisma/client";
+import { removeUserLocation } from "../utils/redisUserLocation";
 
 const userSocketMap : {[userId:number]: {
   socketId: string,
