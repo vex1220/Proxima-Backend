@@ -103,7 +103,11 @@ export async function filterMutuallyNearbyUsers(
 }
 
 export async function removeUserLocation(userId: number) {
-  await redis.zrem(USER_LOCATIONS_KEY, String(userId));
+  try{
+    await redis.zrem(USER_LOCATIONS_KEY, String(userId));
+  } catch (error) {
+    console.error("Error removing user location:", error);
+  }
 }
 
 export async function getNearbyUsersCount(userId: number, radius: number) {

@@ -5,6 +5,7 @@ import {
   saveUserLocation,
   getUserLocation,
   filterMutuallyNearbyUsers,
+  removeUserLocation
 } from "../utils/redisUserLocation";
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
@@ -24,17 +25,12 @@ export function setupProximitySocket(
 ) {
   socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
-      await saveUserLocation(
-        user.id,
-        { latitude, longitude },
-      );
-
-      return getNearbyUsersCount(
+      await saveUserLocation(user.id, { latitude, longitude });
+      const nearbyCount = await getNearbyUsersCount(
         user.id,
         userSocketMap[user.id]?.proximityRadius ?? 10000,
-      ).then((count) => {
-        socket.emit("nearbyUserCount", { count });
-      });
+      );
+      socket.emit("nearbyUserCount", { count: nearbyCount - 1 });
     } catch (error: any) {
       socket.emit("error", "An unexpected error has occured");
     }
@@ -44,7 +40,12 @@ export function setupProximitySocket(
     "sendProximityMessage",
     async ({ latitude, longitude, content }) => {
       try {
-        console.log("[sendProximityMessage] Received:", { latitude, longitude, content, userId: user.id });
+        console.log("[sendProximityMessage] Received:", {
+          latitude,
+          longitude,
+          content,
+          userId: user.id,
+        });
         const message = await proximityMessageService.createProximityMessage(
           user.id,
           content,
@@ -52,14 +53,21 @@ export function setupProximitySocket(
           longitude,
         );
         if (!message) {
-          console.error("[sendProximityMessage] Failed to create message", { userId: user.id, content, latitude, longitude });
+          console.error("[sendProximityMessage] Failed to create message", {
+            userId: user.id,
+            content,
+            latitude,
+            longitude,
+          });
           return socket.emit("error", "Failed to create proximity message");
         }
         console.log("[sendProximityMessage] Created message:", message);
 
         const currentUserLocation = await getUserLocation(String(user.id));
         if (!currentUserLocation) {
-          console.error("[sendProximityMessage] No user location found", { userId: user.id });
+          console.error("[sendProximityMessage] No user location found", {
+            userId: user.id,
+          });
           return socket.emit("error", "Action not Authorized");
         }
 
@@ -72,7 +80,6 @@ export function setupProximitySocket(
           userId: user.id,
         };
 
-
         const nearbyUsers = await getNearbyUsers(
           currentUserLocation.latitude,
           currentUserLocation.longitude,
@@ -82,7 +89,9 @@ export function setupProximitySocket(
         console.log("[sendProximityMessage] userSocketMap:", userSocketMap);
 
         if (!nearbyUsers || nearbyUsers.length === 0) {
-          console.warn("[sendProximityMessage] No nearby users found", { userId: user.id });
+          console.warn("[sendProximityMessage] No nearby users found", {
+            userId: user.id,
+          });
           return socket.emit("error", "no one nearby");
         }
 
@@ -92,15 +101,24 @@ export function setupProximitySocket(
           nearbyUsers,
           userSocketMap,
         );
-        console.log("[sendProximityMessage] usersToBroadCastTo (mutuallyNearby socketIds):", usersToBroadCastTo);
-        console.log("[sendProximityMessage] Broadcasting message content:", content);
+        console.log(
+          "[sendProximityMessage] usersToBroadCastTo (mutuallyNearby socketIds):",
+          usersToBroadCastTo,
+        );
+        console.log(
+          "[sendProximityMessage] Broadcasting message content:",
+          content,
+        );
 
         if (Array.isArray(usersToBroadCastTo)) {
-          usersToBroadCastTo.forEach(socketId => {
+          usersToBroadCastTo.forEach((socketId) => {
             io.to(socketId).emit("receiveProximityMessage", messageToSend);
           });
         } else if (typeof usersToBroadCastTo === "string") {
-          io.to(usersToBroadCastTo).emit("receiveProximityMessage", messageToSend);
+          io.to(usersToBroadCastTo).emit(
+            "receiveProximityMessage",
+            messageToSend,
+          );
         }
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
@@ -108,4 +126,9 @@ export function setupProximitySocket(
       }
     },
   );
+
+  socket.on("disconnect", () => {
+        removeUserLocation(user.id);
+        console.log(`User ${user.displayId} has been removed from redis server`);
+      });
 }
