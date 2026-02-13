@@ -122,7 +122,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         chatRoom,
       );
       if (!isUserInRange) {
-        socket.emit("error", "You are out of range to join this chat room");
+        socket.emit("error", "You are out of range to send a message in this chat room");
         return;
       }
     }
