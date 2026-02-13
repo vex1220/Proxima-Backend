@@ -104,6 +104,31 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         userId:user.id,
       };
 
+      const chatRoom = await getChatRoomById(roomId);
+    if (!chatRoom) {
+      socket.emit("error", "Chat room not found");
+      return;
+    }
+
+    if (chatRoom.longitude && chatRoom.latitude && chatRoom.size) {
+      const userLocation = await getUserLocation(String(user.id));
+      if (!userLocation) {
+        socket.emit("error", "User location not found");
+        return;
+      }
+      const isUserInRange = await userInRange(
+        userLocation.latitude,
+        userLocation.longitude,
+        chatRoom,
+      );
+      if (!isUserInRange) {
+        socket.emit("error", "You are out of range to join this chat room");
+        return;
+      }
+    }
+
+      
+
       io.to(String(roomId)).emit("receiveMessage", messageToSend);
     } catch (error: any) {
       socket.emit("error", "An unexpected error has occured");
