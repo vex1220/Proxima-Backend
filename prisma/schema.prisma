@@ -19,7 +19,7 @@ model User {
   isVerified             Boolean               @default(false)
   ChatRoomMessages       ChatRoomMessage[]
   ProximityMessages      ProximityMessage[]
-  ChatRoomMessageUpvotes ChatRoomMessageVote[]
+  ChatRoomMessageVotes ChatRoomMessageVote[]
 
   chatRooms   ChatRoom[]
   preferences User_Settings?
@@ -67,7 +67,7 @@ model ChatRoomMessage {
   deleted                Boolean               @default(false)
   chatRoom               ChatRoom              @relation(fields: [chatRoomId], references: [id])
   sender                 User                  @relation(fields: [senderId], references: [id])
-  ChatRoomMessageUpvotes ChatRoomMessageVote[]
+  ChatRoomMessageVotes ChatRoomMessageVote[]
 }
 
 model ProximityMessage {
