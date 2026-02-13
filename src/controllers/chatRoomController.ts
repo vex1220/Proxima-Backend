@@ -17,8 +17,12 @@ export async function createChatRoom(req: Request, res: Response) {
     if(!Object.values(ChatRoomType).includes(type)) {
       return res.status(400).json({ message: "Invalid Chatroom Type" })
     }
-
-    const createdChatRoom = await createRoom(name, user, latitude, longitude, size, type);
+    if(!type)
+    {
+      const createdChatRoom = await createRoom(name, user, latitude, longitude, size, type);
+    }else{
+       const createdChatRoom = await createRoom(name, user, latitude, longitude, size, type);
+    }
     const chatRoomList = await listChatRooms();
     return res.status(201).json({
       message: `chatroom: ${name} has been created`, 
