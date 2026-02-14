@@ -23,7 +23,7 @@ model User {
 
   preferences      User_Settings?
   FeedbackMessages FeedbackMessage[]
-  posts            ForumPost[]
+  posts            Post[]
   postComments     PostComment[]
 }
 
@@ -54,44 +54,38 @@ model Location {
   size      Int          @default(0)
   type      LocationType @default(NONE)
   chatRooms ChatRoom[]
-  forum     Forum?
+  posts     Post[]
 
   @@index([latitude, longitude])
   @@index([type])
 }
 
-model Forum {
-  id         Int         @id @default(autoincrement())
-  createdAt  DateTime    @default(now())
-  name       String
-  deleted    Boolean     @default(false)
-  locationId Int         @unique
-  location   Location    @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  forumPosts ForumPost[]
-}
+model Post {
+  id         Int           @id @default(autoincrement())
+  createdAt  DateTime      @default(now())
+  title      String
+  content    String
+  posterId   Int
+  locationId Int
+  deleted    Boolean       @default(false)
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  poster     User          @relation(fields: [posterId], references: [id])
+  comments   PostComment[]
 
-model ForumPost {
-  id        Int           @id @default(autoincrement())
-  createdAt DateTime      @default(now())
-  title     String
-  content   String
-  posterId  Int
-  forumId   Int
-  deleted   Boolean       @default(false)
-  forum     Forum         @relation(fields: [forumId], references: [id], onDelete: Restrict)
-  poster    User          @relation(fields: [posterId], references: [id])
-  comments  PostComment[]
+  @@index(locationId)
 }
 
 model PostComment {
-  id          Int       @id @default(autoincrement())
-  createdAt   DateTime  @default(now())
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
   content     String
   postId      Int
   commenterId Int
-  deleted     Boolean   @default(false)
-  post        ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commenter   User      @relation(fields: [commenterId], references: [id])
+  deleted     Boolean  @default(false)
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commenter   User     @relation(fields: [commenterId], references: [id])
+
+  @@index(postId)
 }
 
 model ChatRoom {
