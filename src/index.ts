@@ -80,8 +80,13 @@ const io = new Server(httpServer, {
 });
 setupSocket(io);
 
-httpServer.listen(PORT, () => {
-  logger.info(`Server running on http://localhost:${PORT}`);
-});
+// Only start the server when this file is run directly. Tests and other
+// consumers that import `app` should create and control the HTTP server
+// themselves to avoid port conflicts.
+if (require.main === module) {
+  httpServer.listen(PORT, () => {
+    logger.info(`Server running on http://localhost:${PORT}`);
+  });
+}
 
 export default app;
