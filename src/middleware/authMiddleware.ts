@@ -20,6 +20,10 @@ export async function authenticateToken(
       return res.status(403).json({ message: "user no longer exists" });
     }
 
+    if(!user.isVerified){
+      return res.status(403).json({ message: "user is not verified" });
+    }
+
     req.user = user;
     next();
   } catch (err) {

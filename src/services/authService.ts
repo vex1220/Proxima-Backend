@@ -58,6 +58,10 @@ export async function refreshAccessToken(refreshToken: string) {
       throw new Error("user does not exist");
     }
 
+    if(!user.isVerified){
+      throw new Error("users email is not verified");
+    }
+
     const newAccessToken = await genAccessTokenFromUser(user);
 
     return await { accessToken: newAccessToken };

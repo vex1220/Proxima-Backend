@@ -92,7 +92,7 @@ export async function verifyCode(req: Request, res: Response) {
       accessToken,
       refreshToken,
     });
-  } catch (err: any) {
-    return res.status(400).json({ message: err.message });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
   }
 }
