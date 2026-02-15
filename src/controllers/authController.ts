@@ -89,7 +89,6 @@ export async function verifyCode(req: Request, res: Response) {
 
     return res.status(200).json({
       message: "Authenticated",
-      user: { id: user.id, email: user.email, displayId: user.displayId },
       accessToken,
       refreshToken,
     });
