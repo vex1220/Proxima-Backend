@@ -85,6 +85,7 @@ export async function userDetails(req: Request, res: Response) {
       created: user.createdAt,
       message: "user details retrieved",
       isAdmin: user.isAdmin,
+      isEmailVerified: user.isVerified
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
