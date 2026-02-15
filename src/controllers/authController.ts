@@ -12,8 +12,9 @@ export async function register(req: Request, res: Response) {
   try {
     const { email, displayId, password } = req.body;
     const user = await registerUser(email, displayId, password);
+    await sendOneTimeCode(user.email);
     return res.status(201).json({
-      message: "User registered successfully",
+      message: "OTP sent",
       user: { id: user.id, email: user.email, displayId: user.displayId },
     });
   } catch (error: any) {
