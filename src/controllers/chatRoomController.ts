@@ -17,6 +17,7 @@ export async function createChatRoom(req: Request, res: Response) {
     {
       return res.status(400).json({ message: "A location Id Is required" });
     }
+    const createdChatroom = await createRoom(name,locationId);
     const chatRoomsInLocationList = await listChatRooms(locationId);
     return res.status(201).json({
       message: `chatroom: ${name} has been created`, 
