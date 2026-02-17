@@ -1,13 +1,16 @@
 
-import { ChatRoom, Location, LocationType } from "@prisma/client";
+import { ChatRoom, Location, LocationType, Post } from "@prisma/client";
 import { LocationDao } from "../dao/LocationDao";
 import { listChatRooms } from "./chatRoomService";
 import {prisma} from "../utils/prisma";
 import { createRoomDao } from "../dao/chatRoomDao";
 import { PostService } from "./PostService";
+import { VoteService } from "./VoteService";
+import { VoteModel } from "../models/voteTypes";
 
 const locationDao = new LocationDao();
 const postService = new PostService();
+const voteService = new VoteService(VoteModel.PostVote);
 
 export class LocationService {
   async createLocation(
@@ -56,6 +59,18 @@ export class LocationService {
     const locationChatRooms = await listChatRooms(location.id);
     const locationPosts = await postService.getPostListByLocation(id);
 
+    const voteCounts = await Promise.all (
+    locationPosts.map((post) =>
+      voteService.getVoteCount(post.id)
+  ));
+
+    const postsWithVotes = locationPosts.map((post, idx) => ({
+      id: post.id,
+      posterId : post.posterId,
+      tile: post.title,
+      voteCount: voteCounts[idx]
+    }));
+
     return {
         id: location.id,
         name: location.name,
@@ -64,7 +79,7 @@ export class LocationService {
         size: location.size,
         type: location.type,
         chatRooms: locationChatRooms,
-        locationPosts: locationPosts
+        locationPosts: postsWithVotes,
     }
   }
 

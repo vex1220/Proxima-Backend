@@ -3,9 +3,13 @@ import { PostDao } from "../dao/PostDao";
 import { CreatePostInput } from "../models/postTypes";
 import { validatePost } from "../utils/postValidator";
 import { PostCommentService } from "./PostCommentService";
+import { VoteService } from "./VoteService";
+import { VoteModel } from "../models/voteTypes";
 
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
+const postVoteService = new  VoteService(VoteModel.PostVote);
+const postCommentVoteService = new  VoteService(VoteModel.PostVote);
 
 export class PostService {
   async createPost(data: CreatePostInput) {
@@ -49,29 +53,30 @@ export class PostService {
       throw new Error("Cannot Find Post");
     }
 
+    const postVotes = await postVoteService.getVoteCount(post.id);
+
     const comments = await postCommentService.getPostCommentsByPost(post.id);
+
+    const commentVotes = await Promise.all(
+      comments.map((comment) =>
+        postCommentVoteService.getVoteCount(comment.id)
+    )); 
+
+    const commentsWithVotes = comments.map((comment, idx) => ({
+      ...comment,
+      voteCount: commentVotes[idx]
+    }));
 
     return {
       id:post.id,
       title:post.title,
+      content:post.content,
       posterId: post.posterId,
       posterDisplayId: post.poster.displayId,
+      postVotes: postVotes,
       createdAt: post.createdAt,
       commentCount: comments.length,
-      comments,
+      comments: commentsWithVotes,
     };
-  }
-
-  async getPostAndPostCommentsByLocation(id: number) {
-    const posts = await postDao.getPostsByLocation(id);
-
-    const postComments = await Promise.all(
-      posts.map((post) => postCommentService.getPostCommentsByPost(post.id)),
-    );
-
-    return posts.map((post: Post, idx) => ({
-      ...post,
-      comments: postComments[idx],
-    }));
   }
 }

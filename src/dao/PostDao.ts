@@ -33,7 +33,10 @@ export class PostDao{
     }
 
     async getPostsByLocation(locationId:number){
-        return prisma.post.findMany({where: {locationId}});
+        return prisma.post.findMany({
+            where: {locationId},
+            select: {id : true, title:true, posterId:true}
+        });
     }
 
     async getPostsByUser(userId:number){
