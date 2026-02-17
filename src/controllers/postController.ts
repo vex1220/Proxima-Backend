@@ -3,10 +3,14 @@ import { LocationService } from "../services/LocationService";
 import { verifyLocationAndUserInRange } from "../utils/locationUtils";
 import { withAuth } from "../utils/handler";
 import { PostCommentService } from "../services/PostCommentService";
+import { VoteModel } from "../models/voteTypes";
+import { VoteService } from "../services/VoteService";
 
 const postService = new PostService();
 const locationService = new LocationService();
 const postCommentService = new PostCommentService();
+const postVoteService = new  VoteService(VoteModel.PostVote);
+const postCommentVoteService = new  VoteService(VoteModel.PostCommentVote);
 
 export const createPost = withAuth(async (req, res) => {
   try {
@@ -127,6 +131,56 @@ export const commentOnPost = withAuth(async (req, res) => {
       updatedPost,
     });
   } catch (error: any) {
+    return res.status(404).json({ message: error.message });
+  }
+});
+
+export const voteOnPost = withAuth(async (req, res) => {
+  try {
+    const postId = Number(req.params.postId);
+    const {vote} = req.body;
+    const user = req.user;
+
+    if (!postId || Number.isNaN(postId)) {
+      return res.status(400).json({ message: "invalid post Id" });
+    }
+
+    const post = await postService.getPostWithLocation(postId);
+    if(!post){
+      return res.status(400).json({ message: "invalid post Id" });
+    }
+
+    await postVoteService.voteOnMessage(vote);
+
+    return res.status(201).json({
+      message: "voted successfully",
+    });
+    } catch (error: any) {
+    return res.status(404).json({ message: error.message });
+  }
+});
+
+export const voteOnComment = withAuth(async (req, res) => {
+  try {
+    const commmentId = Number(req.params.postId);
+    const {vote} = req.body;
+    const user = req.user;
+
+    if (!commmentId || Number.isNaN(commmentId)) {
+      return res.status(400).json({ message: "invalid post Id" });
+    }
+
+    const comment = await postCommentService.getPostCommentById(commmentId);
+    if(!comment){
+      return res.status(400).json({ message: "invalid post Id" });
+    }
+
+    await postCommentVoteService.voteOnMessage(vote);
+
+    return res.status(201).json({
+      message: "voted successfully",
+    });
+    } catch (error: any) {
     return res.status(404).json({ message: error.message });
   }
 });

@@ -9,7 +9,7 @@ import { VoteModel } from "../models/voteTypes";
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
 const postVoteService = new  VoteService(VoteModel.PostVote);
-const postCommentVoteService = new  VoteService(VoteModel.PostVote);
+const postCommentVoteService = new  VoteService(VoteModel.PostCommentVote);
 
 export class PostService {
   async createPost(data: CreatePostInput) {
