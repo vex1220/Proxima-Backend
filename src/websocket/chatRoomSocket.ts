@@ -3,8 +3,10 @@ import { User } from "@prisma/client";
 import {getLastFiftyMessages} from "../services/chatRoomService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { updateUserKarma } from "../services/userService";
-import { ChatRoomMessageVoteService } from "../services/ChatRoomMessageVoteService";
+import { VoteService } from "../services/VoteService";
 import { getAndVerifyMessage,verifyChatRoomAndUserInRange } from "../utils/chatRoomSocketUtils";
+import { VoteModel, Vote } from "../models/voteTypes";
+import { constructVote } from "../utils/voteUtils";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -12,7 +14,7 @@ function getUserCount(io: Server, roomId: string) {
 }
 
 const chatRoomMessageService = new ChatRoomMessageService();
-const chatRoomMessageVoteService = new ChatRoomMessageVoteService();
+const voteService = new VoteService(VoteModel.ChatRoomMessageVote);
 
 export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
   socket.on("joinRoom", async (roomId: number) => {
@@ -113,7 +115,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
     }
   });
 
-  socket.on("voteMessage", async ({ roomId, messageId, vote }) => {
+  socket.on("voteMessage", async ({ roomId, messageId, value }) => {
     try {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);
       const message = await getAndVerifyMessage(messageId);
@@ -122,15 +124,16 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         return socket.emit("error", "You cannot vote on your own message");
       }
 
-      if(vote == 0){
-        await chatRoomMessageVoteService.removeVote(user.id,messageId)
+      if(value == 0){
+        const vote : Vote = constructVote(value,user.id,message.id)
+        await voteService.removeVote(vote)
       }else{
+      const vote : Vote = constructVote(value,user.id,message.id)
+      await voteService.voteOnMessage(vote);
 
-      await chatRoomMessageVoteService.voteOnMessage(user.id, messageId, vote);
-
-      await updateUserKarma(message.senderId, vote);
+      await updateUserKarma(message.senderId, vote.value);
       }
-      const voteCount = await chatRoomMessageVoteService.getMessageVoteCount(
+      const voteCount = await voteService.getVoteCount(
         messageId,
       );
 

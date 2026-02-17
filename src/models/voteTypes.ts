@@ -3,3 +3,9 @@ export interface Vote {
     userId: number,
     targetId: number
 }
+
+export enum VoteModel{
+  PostVote = "postVote",
+  ChatRoomMessageVote = "chatRoomMessageVote",
+  PostCommentVote = "postCommentVote"
+}
