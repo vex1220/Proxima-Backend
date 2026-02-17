@@ -8,18 +8,20 @@ datasource db {
 }
 
 model User {
-  id                   Int                   @id @default(autoincrement())
-  createdAt            DateTime              @default(now())
-  email                String                @unique
-  displayId            String
-  karma                Int                   @default(0)
-  isAdmin              Boolean               @default(false)
-  password             String
-  deleted              Boolean               @default(false)
-  isVerified           Boolean               @default(false)
-  ChatRoomMessages     ChatRoomMessage[]
-  ProximityMessages    ProximityMessage[]
-  ChatRoomMessageVotes ChatRoomMessageVote[]
+  id                      Int                   @id @default(autoincrement())
+  createdAt               DateTime              @default(now())
+  email                   String                @unique
+  displayId               String
+  karma                   Int                   @default(0)
+  isAdmin                 Boolean               @default(false)
+  password                String
+  deleted                 Boolean               @default(false)
+  isVerified              Boolean               @default(false)
+  ChatRoomMessages        ChatRoomMessage[]
+  ProximityMessages       ProximityMessage[]
+  ChatRoomMessageVotes    ChatRoomMessageVote[]
+  PostVotes               PostVote[]
+  PostCommentMessageVotes PostCommentVote[]
 
   preferences      User_Settings?
   FeedbackMessages FeedbackMessage[]
@@ -71,21 +73,47 @@ model Post {
   location   Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
   poster     User          @relation(fields: [posterId], references: [id])
   comments   PostComment[]
+  votes      PostVote[]
 
   @@index(locationId)
 }
 
 model PostComment {
-  id          Int      @id @default(autoincrement())
-  createdAt   DateTime @default(now())
+  id          Int               @id @default(autoincrement())
+  createdAt   DateTime          @default(now())
   content     String
   postId      Int
   commenterId Int
-  deleted     Boolean  @default(false)
-  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commenter   User     @relation(fields: [commenterId], references: [id])
+  deleted     Boolean           @default(false)
+  post        Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commenter   User              @relation(fields: [commenterId], references: [id])
+  votes       PostCommentVote[]
 
   @@index(postId)
+}
+
+model PostVote {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  targetId  Int
+  value     Int
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId])
+}
+
+model PostCommentVote {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  targetId  Int
+  value     Int
+  createdAt DateTime    @default(now())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      PostComment @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId])
 }
 
 model ChatRoom {
@@ -101,29 +129,29 @@ model ChatRoom {
 }
 
 model ChatRoomMessage {
-  id                   Int                   @id @default(autoincrement())
-  createdAt            DateTime              @default(now())
-  content              String
-  chatRoomId           Int
-  senderId             Int
-  isReply              Boolean               @default(false)
-  replyToId            Int?
-  deleted              Boolean               @default(false)
-  chatRoom             ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  sender               User                  @relation(fields: [senderId], references: [id])
-  ChatRoomMessageVotes ChatRoomMessageVote[]
+  id         Int                   @id @default(autoincrement())
+  createdAt  DateTime              @default(now())
+  content    String
+  chatRoomId Int
+  senderId   Int
+  isReply    Boolean               @default(false)
+  replyToId  Int?
+  deleted    Boolean               @default(false)
+  chatRoom   ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender     User                  @relation(fields: [senderId], references: [id])
+  votes      ChatRoomMessageVote[]
 }
 
 model ChatRoomMessageVote {
   id        Int             @id @default(autoincrement())
   userId    Int
-  messageId Int
+  targetId  Int
   value     Int
   createdAt DateTime        @default(now())
   user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  message   ChatRoomMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message   ChatRoomMessage @relation(fields: [targetId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, messageId])
+  @@unique([userId, targetId])
 }
 
 model ProximityMessage {
