@@ -13,3 +13,9 @@ export function constructVote(value: number, userId: number, targetId: number): 
     targetId
   };
 }
+
+export function validateNotOwnPost(userId:number, id:number) {
+  if (userId == id) {
+    throw new Error("user cannot vote on their own post");
+  }
+}

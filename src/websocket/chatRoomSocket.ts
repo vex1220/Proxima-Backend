@@ -6,7 +6,7 @@ import { updateUserKarma } from "../services/userService";
 import { VoteService } from "../services/VoteService";
 import { getAndVerifyMessage,verifyChatRoomAndUserInRange } from "../utils/chatRoomSocketUtils";
 import { VoteModel, Vote } from "../models/voteTypes";
-import { constructVote } from "../utils/voteUtils";
+import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -120,9 +120,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);
       const message = await getAndVerifyMessage(messageId);
 
-      if (message.senderId === user.id) {
-        return socket.emit("error", "You cannot vote on your own message");
-      }
+      validateNotOwnPost(user.id,message.id);
 
       if(value == 0){
         const vote : Vote = constructVote(value,user.id,message.id)
