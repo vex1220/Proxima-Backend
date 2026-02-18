@@ -1,4 +1,4 @@
-import { User, ChatRoomMessage } from "@prisma/client";
+import { ChatRoomMessage } from "@prisma/client";
 import {
   ChatRoomMessageService,
 } from "./ChatRoomMessageService";
@@ -9,11 +9,12 @@ import {
   getChatRoomByIdDao,
   getChatRoomByNameAndLocationDao,
 } from "../dao/chatRoomDao";
-import { ChatRoomMessageVoteService } from "./ChatRoomMessageVoteService";
+import { VoteService } from "./VoteService";
 import { LocationDao } from "../dao/LocationDao";
+import { VoteModel } from "../models/voteTypes";
 
 const chatRoomMessageService = new ChatRoomMessageService();
-const chatRoomMessageVoteService = new ChatRoomMessageVoteService();
+const voteService = new VoteService(VoteModel.ChatRoomMessageVote);
 const locationDao = new LocationDao();
 
 export async function createRoom(name: string, locationId:number) {
@@ -56,7 +57,7 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
 
   const voteCounts = await Promise.all (
     messages.map((message) =>
-      chatRoomMessageVoteService.getMessageVoteCount(message.id)
+      voteService.getVoteCount(message.id)
   )
 );
 
