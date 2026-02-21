@@ -11,11 +11,12 @@ import { setupSocket } from "./websocket/setupSocket";
 import helmet from "helmet";
 import logger from "./utils/logger";
 import rateLimit from "express-rate-limit";
-import feedbackRoutes from "./routes/feedback"
+import feedbackRoutes from "./routes/feedback";
 import postRoutes from "./routes/post";
+import { Request, Response, NextFunction } from "express";
 
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
+  windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
@@ -24,27 +25,42 @@ const apiLimiter = rateLimit({
   }
 });
 
-import { Request, Response, NextFunction } from "express";
-
 dotenv.config();
-
 const app = express();
 app.set("trust proxy", 1);
 const PORT = process.env.PORT || 8000;
 
-const allowedOrigins = (process.env.CORS_ORIGINS || "")
+const allowedOrigins = (process.env.CORS_ORIGINS || "http://localhost:3000")
   .split(",")
-  .map((origin) => origin.trim())
-  .filter(Boolean);
+  .map((origin) => origin.trim());
 
-const corsOptions = {
-  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
-  credentials: true,
-};
-
-app.use(cors(corsOptions));
-app.use(helmet({ crossOriginResourcePolicy: false }));
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+  }),
+);
+app.use(helmet());
 app.use(express.json());
+app.use("/api/", apiLimiter);
+app.use("/api/auth", authRoutes);
+app.use("/api/chatroom", chatRoomRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/location", locationRoutes);
+app.use("/api/post", postRoutes);
+
+app.get("/", (_req, res) => {
+  res.json({ status: "Proxima API running" });
+});
+
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
   res.status(err.status || 500).json({
@@ -53,38 +69,21 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-
-
-app.use("/api/", apiLimiter);
-app.use("/api/auth", authRoutes);
-app.use("/api/chatroom", chatRoomRoutes);
-app.use("/api/user", userRoutes );
-app.use("/api/feedback", feedbackRoutes );
-app.use("/api/location", locationRoutes);
-app.use("/api/post",postRoutes);
-
-app.get("/", (_req, res) => {
-  res.json({ status: "Proxima API running" });
-});
-
 const httpServer = createServer(app);
-
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins.length > 0 ? allowedOrigins : true,
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
 });
+
 setupSocket(io);
 
-// Only start the server when this file is run directly. Tests and other
-// consumers that import `app` should create and control the HTTP server
-// themselves to avoid port conflicts.
 if (require.main === module) {
   httpServer.listen(PORT, () => {
     logger.info(`Server running on http://localhost:${PORT}`);
   });
 }
-//work damn it
+
 export default app;
