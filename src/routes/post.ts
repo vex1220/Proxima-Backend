@@ -13,10 +13,12 @@ router.post("/",createPost);
 
 router.get("/:postId",postDetails);
 
+router.post("/vote/comment/:id",voteOnComment);
+
 router.post("/vote/:postId",voteOnPost)
 
 router.post("/:postId/comment",commentOnPost);
 
-router.post("/vote/comment/:id",voteOnComment);
+
 
 export default router;

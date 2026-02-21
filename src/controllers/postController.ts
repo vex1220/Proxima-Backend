@@ -152,7 +152,7 @@ export const voteOnPost = withAuth(async (req, res) => {
       return res.status(400).json({ message: "invalid post Id" });
     }
 
-    validateNotOwnPost(user.id,post.id);
+    validateNotOwnPost(user.id, post.posterId);
 
     await postVoteService.voteOnMessage(vote);
 
@@ -166,7 +166,7 @@ export const voteOnPost = withAuth(async (req, res) => {
 
 export const voteOnComment = withAuth(async (req, res) => {
   try {
-    const commmentId = Number(req.params.postId);
+    const commentId = Number(req.params.id);
     const {vote} = req.body;
     const user = req.user;
 
@@ -179,7 +179,7 @@ export const voteOnComment = withAuth(async (req, res) => {
       return res.status(400).json({ message: "invalid comment Id" });
     }
 
-    validateNotOwnPost(user.id,comment.id);
+    validateNotOwnPost(user.id, comment.commenterId);
 
     await postCommentVoteService.voteOnMessage(vote);
 
