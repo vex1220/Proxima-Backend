@@ -78,7 +78,7 @@ export async function filterMutuallyNearbyUsers(
   const mutuallyNearby: number[] = [];
   for (const id of nearbyUserIds) {
     const nearbyUserLocation = await getUserLocation(String(id));
-    const nearbyUserRadius = userSocketMap[id]?.proximityRadius ?? 804670;
+    const nearbyUserRadius = userSocketMap[id]?.proximityRadius ?? 1600;
     if (!nearbyUserLocation) continue;
 
     const distance = getDistance(
@@ -110,18 +110,44 @@ export async function removeUserLocation(userId: number) {
   }
 }
 
-export async function getNearbyUsersCount(userId: number, radius: number) {
+export async function getNearbyUsersCount(
+  userId: number,
+  radius: number,
+  userSocketMap: {
+    [userId: number]: { socketId: string; proximityRadius: number };
+  },
+) {
   const location = await getUserLocation(String(userId));
   if (!location) return 0;
 
+  // Step 1: find everyone within MY radius (one-directional)
   const nearbyUserIds = await getNearbyUsers(
     location.latitude,
     location.longitude,
     radius,
   );
 
-  // this should exclude the querying user from the count
-  return nearbyUserIds.filter((id) => id !== userId).length;
+  // Step 2: keep only users who also have ME within THEIR radius (mutual)
+  let mutualCount = 0;
+  for (const id of nearbyUserIds) {
+    if (id === userId) continue;
+
+    const otherLocation = await getUserLocation(String(id));
+    if (!otherLocation) continue;
+
+    const otherRadius = userSocketMap[id]?.proximityRadius ?? 1600;
+
+    const distance = getDistance(
+      { latitude: location.latitude, longitude: location.longitude },
+      { latitude: otherLocation.latitude, longitude: otherLocation.longitude },
+    );
+
+    if (distance <= otherRadius) {
+      mutualCount++;
+    }
+  }
+
+  return mutualCount;
 }
 
 //left off here

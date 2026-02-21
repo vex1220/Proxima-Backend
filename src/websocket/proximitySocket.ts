@@ -23,13 +23,22 @@ export function setupProximitySocket(
     };
   },
 ) {
-  socket.on("updateLocation", async ({ latitude, longitude }) => {
+socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
       await saveUserLocation(user.id, { latitude, longitude });
-      const nearbyCount = await getNearbyUsersCount(
+
+      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
+      const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
+      const otherUserIds = nearbyUserIds.filter((id) => id !== user.id);
+
+      const mutualSocketIds = await filterMutuallyNearbyUsers(
         user.id,
-        userSocketMap[user.id]?.proximityRadius ?? 10000,
+        { latitude, longitude },
+        otherUserIds,
+        userSocketMap,
       );
+
+      const nearbyCount = Array.isArray(mutualSocketIds) ? mutualSocketIds.length : 0;
       socket.emit("nearbyUserCount", { count: nearbyCount });
     } catch (error: any) {
       socket.emit("error", "An unexpected error has occured");

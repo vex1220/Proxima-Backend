@@ -39,7 +39,7 @@ export function setupSocket(io: Server) {
 
       userSocketMap [user.id] = {
         socketId: socket.id,
-        proximityRadius: user.preferences?.proximityRadius ?? 2,
+        proximityRadius: user.preferences?.proximityRadius ?? 1600,
       }
 
     console.log(`User ${user.displayId} connected via WebSocket`);
