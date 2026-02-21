@@ -43,37 +43,63 @@ export class PostService {
     return await postDao.getPostByIdWithLocation(id);
   }
 
-  async getPostListByLocation(id:number){
-    return await postDao.getPostsByLocation(id);
+  async getPostListByLocation(id: number) {
+    const posts = await postDao.getPostsByLocation(id);
+
+    // Attach vote counts to each post
+    const postsWithVotes = await Promise.all(
+      posts.map(async (post) => {
+        const voteCount = await postVoteService.getVoteCount(post.id);
+        return { ...post, voteCount };
+      })
+    );
+
+    return postsWithVotes;
   }
 
-  async getPostandPostCommentsById(id:number){
+  async getPostandPostCommentsById(id: number, userId?: number) {
     const post = await postDao.getPostById(id);
-    if(!post){
+    if (!post) {
       throw new Error("Cannot Find Post");
     }
 
     const postVotes = await postVoteService.getVoteCount(post.id);
+
+    // Get the current user's vote on this post (if logged in)
+    let userPostVote: number | null = null;
+    if (userId) {
+      userPostVote = await postVoteService.getUserVoteValue(userId, post.id);
+    }
 
     const comments = await postCommentService.getPostCommentsByPost(post.id);
 
     const commentVotes = await Promise.all(
       comments.map((comment) =>
         postCommentVoteService.getVoteCount(comment.id)
-    )); 
+      )
+    );
+
+    // Batch-fetch the user's votes on all comments
+    let userCommentVotes: Record<number, number> = {};
+    if (userId && comments.length > 0) {
+      const commentIds = comments.map((c) => c.id);
+      userCommentVotes = await postCommentVoteService.getUserVotesForTargets(userId, commentIds);
+    }
 
     const commentsWithVotes = comments.map((comment, idx) => ({
       ...comment,
-      voteCount: commentVotes[idx]
+      voteCount: commentVotes[idx],
+      userVote: userCommentVotes[comment.id] ?? null,
     }));
 
     return {
-      id:post.id,
-      title:post.title,
-      content:post.content,
+      id: post.id,
+      title: post.title,
+      content: post.content,
       posterId: post.posterId,
       posterDisplayId: post.poster.displayId,
       postVotes: postVotes,
+      userPostVote: userPostVote,
       createdAt: post.createdAt,
       commentCount: comments.length,
       comments: commentsWithVotes,

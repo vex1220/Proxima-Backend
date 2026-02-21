@@ -67,12 +67,13 @@ export const createPost = withAuth(async (req, res) => {
 export const postDetails = withAuth(async (req, res) => {
   try {
     const postId = Number(req.params.postId);
+    const user = req.user;
 
     if (!postId || Number.isNaN(postId)) {
       return res.status(400).json({ message: "invalid post Id" });
     }
 
-    const payload = await postService.getPostandPostCommentsById(postId);
+    const payload = await postService.getPostandPostCommentsById(postId, user.id);
 
     return res.status(200).json({
       payload,
@@ -190,6 +191,46 @@ export const voteOnComment = withAuth(async (req, res) => {
       message: "voted successfully",
     });
     } catch (error: any) {
+    return res.status(404).json({ message: error.message });
+  }
+});
+
+export const deletePostVote = withAuth(async (req, res) => {
+  try {
+    const postId = Number(req.params.postId);
+    const user = req.user;
+
+    if (!postId || Number.isNaN(postId)) {
+      return res.status(400).json({ message: "invalid post Id" });
+    }
+
+    const vote = constructVote(0, user.id, postId);
+    await postVoteService.removeVote(vote);
+
+    return res.status(200).json({
+      message: "vote removed successfully",
+    });
+  } catch (error: any) {
+    return res.status(404).json({ message: error.message });
+  }
+});
+
+export const deleteCommentVote = withAuth(async (req, res) => {
+  try {
+    const commentId = Number(req.params.id);
+    const user = req.user;
+
+    if (!commentId || Number.isNaN(commentId)) {
+      return res.status(400).json({ message: "invalid comment Id" });
+    }
+
+    const vote = constructVote(0, user.id, commentId);
+    await postCommentVoteService.removeVote(vote);
+
+    return res.status(200).json({
+      message: "vote removed successfully",
+    });
+  } catch (error: any) {
     return res.status(404).json({ message: error.message });
   }
 });

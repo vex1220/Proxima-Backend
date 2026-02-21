@@ -3,7 +3,7 @@ import {
   authenticateToken,
   authenticateAdmin,
 } from "../middleware/authMiddleware";
-import { commentOnPost, createPost, postDetails, voteOnComment, voteOnPost } from "../controllers/postController";
+import { commentOnPost, createPost, postDetails, voteOnComment, voteOnPost, deletePostVote, deleteCommentVote } from "../controllers/postController";
 
 const router = Router();
 
@@ -14,8 +14,10 @@ router.post("/",createPost);
 router.get("/:postId",postDetails);
 
 router.post("/vote/comment/:id",voteOnComment);
+router.delete("/vote/comment/:id", deleteCommentVote);
 
-router.post("/vote/:postId",voteOnPost)
+router.post("/vote/:postId",voteOnPost);
+router.delete("/vote/:postId", deletePostVote);
 
 router.post("/:postId/comment",commentOnPost);
 

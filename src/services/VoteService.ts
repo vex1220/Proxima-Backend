@@ -27,6 +27,14 @@ export class VoteService {
     return await this.dao.getVote(vote);
   }
 
+  async getUserVoteValue(userId: number, targetId: number): Promise<number | null> {
+    return await this.dao.getUserVoteValue(userId, targetId);
+  }
+
+  async getUserVotesForTargets(userId: number, targetIds: number[]): Promise<Record<number, number>> {
+    return await this.dao.getUserVotesForTargets(userId, targetIds);
+  }
+
   async getVoteCount(targetId: number) {
     return await this.dao.getVoteCount(targetId);
   }
