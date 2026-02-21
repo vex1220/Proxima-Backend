@@ -32,12 +32,12 @@ export class PostDao{
         });
     }
 
-    async getPostsByLocation(locationId:number){
-        return prisma.post.findMany({
-            where: {locationId},
-            select: {id : true, title:true, posterId:true}
-        });
-    }
+async getPostsByLocation(locationId: number) {
+  return prisma.post.findMany({
+    where: { locationId, deleted: false },
+    select: { id: true, title: true, content: true, posterId: true, createdAt: true }
+  });
+}
 
     async getPostsByUser(userId:number){
         return prisma.post.findMany({where : {posterId: userId}});

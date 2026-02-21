@@ -64,11 +64,13 @@ export class LocationService {
       voteService.getVoteCount(post.id)
   ));
 
-    const postsWithVotes = locationPosts.map((post, idx) => ({
-      id: post.id,
-      posterId : post.posterId,
-      tile: post.title,
-      voteCount: voteCounts[idx]
+  const postsWithVotes = locationPosts.map((post, idx) => ({
+    id: post.id,
+    posterId: post.posterId,
+    title: post.title,         // fix typo
+    content: post.content,     // add missing field
+    createdAt: post.createdAt, // added missing field
+    voteCount: voteCounts[idx]
     }));
 
     return {

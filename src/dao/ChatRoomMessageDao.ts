@@ -42,13 +42,11 @@ export class ChatRoomMessageDao extends AbstractMessageDao<ChatRoomMessage | nul
       });
   }
 
-  async getMessageCountByUser(senderId: number): Promise<number> {
-    return prisma.chatRoomMessage
-      .findMany({
-        where: { senderId: senderId },
-      })
-      .then((result)=> result.length);
-  }
+async getMessageCountByUser(senderId: number): Promise<number> {
+  return prisma.chatRoomMessage.count({
+    where: { senderId },
+  });
+}
 
   async createChatRoomMessage(
     chatRoomId: number,

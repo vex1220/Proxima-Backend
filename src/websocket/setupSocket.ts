@@ -23,7 +23,13 @@ export function setupSocket(io: Server) {
       if (!user) {
         return next(new Error("User no longer exists"));
       }
-
+      
+      if (!user.isVerified) {
+    return next(new Error("User email is not verified"));
+    }
+    if (user.deleted) {
+    return next(new Error("User no longer exists"));
+    } 
       socket.user = user;
       next();
     } catch (err) {

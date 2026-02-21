@@ -16,10 +16,6 @@ export class VoteService {
       throw new Error("values not 1 or -1 not supported");
     }
 
-    if ( vote.userId == vote.targetId) {
-      throw new Error("user cannot vote on this message");
-    }
-
     return await this.dao.createOrUpdateVote(vote);
   }
 
