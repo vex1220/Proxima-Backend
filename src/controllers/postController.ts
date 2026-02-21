@@ -170,11 +170,11 @@ export const voteOnComment = withAuth(async (req, res) => {
     const {vote} = req.body;
     const user = req.user;
 
-    if (!commmentId || Number.isNaN(commmentId)) {
+    if (!commentId || Number.isNaN(commentId)) {
       return res.status(400).json({ message: "invalid comment Id" });
     }
 
-    const comment = await postCommentService.getPostCommentById(commmentId);
+    const comment = await postCommentService.getPostCommentById(commentId);
     if(!comment){
       return res.status(400).json({ message: "invalid comment Id" });
     }

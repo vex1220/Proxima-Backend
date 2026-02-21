@@ -120,20 +120,32 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);
       const message = await getAndVerifyMessage(messageId);
 
-      validateNotOwnPost(user.id,message.id);
+      validateNotOwnPost(user.id,message.senderId);
+
+      // Always fetch existing vote first so we can compute the karma delta
+      const existingVote = await voteService.getVote(
+        constructVote(0, user.id, message.id)
+      );
+      const oldValue = existingVote?.value ?? 0;
 
       if(value == 0){
-        const vote : Vote = constructVote(value,user.id,message.id)
-        await voteService.removeVote(vote)
+        // Removing vote — reverse the old karma
+        if (existingVote) {
+          await voteService.removeVote(constructVote(0, user.id, message.id));
+          await updateUserKarma(message.senderId, -oldValue);
+        }
       }else{
-      const vote : Vote = constructVote(value,user.id,message.id)
-      await voteService.voteOnMessage(vote);
+        // Creating or changing vote — apply the delta
+        const vote : Vote = constructVote(value,user.id,message.id)
+        await voteService.voteOnMessage(vote);
 
-      await updateUserKarma(message.senderId, vote.value);
+        const karmaDelta = value - oldValue;
+        if (karmaDelta !== 0) {
+          await updateUserKarma(message.senderId, karmaDelta);
+        }
       }
-      const voteCount = await voteService.getVoteCount(
-        messageId,
-      );
+
+      const voteCount = await voteService.getVoteCount(messageId);
 
       const updatedMessage = {
         ...message,

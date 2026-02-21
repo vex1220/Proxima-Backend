@@ -61,9 +61,18 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
   )
 );
 
+  // Fetch the current user's vote on each message (if any)
+  const userVotes = await Promise.all(
+    messages.map((message) =>
+      voteService.getVote({ value: 0, userId, targetId: message.id })
+        .catch(() => null)  // no vote exists — that's fine
+    )
+  );
+
   return messages.map((message: ChatRoomMessage,idx) => ({
     ...message,
     isOwnMessage: message.senderId == userId,
-    voteCount: voteCounts[idx]
+    voteCount: voteCounts[idx],
+    userVote: userVotes[idx]?.value ?? null,
   }));
 }
