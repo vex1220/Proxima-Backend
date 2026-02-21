@@ -6,13 +6,14 @@ import { PostCommentService } from "../services/PostCommentService";
 import { VoteModel } from "../models/voteTypes";
 import { VoteService } from "../services/VoteService";
 import { validateNotOwnPost, constructVote } from "../utils/voteUtils";
+import { updateUserKarma } from "../services/userService";
 
 
 const postService = new PostService();
 const locationService = new LocationService();
 const postCommentService = new PostCommentService();
-const postVoteService = new  VoteService(VoteModel.PostVote);
-const postCommentVoteService = new  VoteService(VoteModel.PostCommentVote);
+const postVoteService = new VoteService(VoteModel.PostVote);
+const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 
 export const createPost = withAuth(async (req, res) => {
   try {
@@ -75,18 +76,20 @@ export const postDetails = withAuth(async (req, res) => {
 
     const payload = await postService.getPostandPostCommentsById(postId, user.id);
 
-    return res.status(200).json({
-      payload,
-    });
+    if (!payload) {
+      return res.status(404).json({ message: "post not found" });
+    }
+
+    return res.status(200).json({ payload });
   } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 });
 
 export const commentOnPost = withAuth(async (req, res) => {
   try {
     const postId = Number(req.params.postId);
-    const {content} = req.body;
+    const { content } = req.body;
     const user = req.user;
 
     if (!postId || Number.isNaN(postId)) {
@@ -134,14 +137,14 @@ export const commentOnPost = withAuth(async (req, res) => {
       updatedPost,
     });
   } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 });
 
 export const voteOnPost = withAuth(async (req, res) => {
   try {
     const postId = Number(req.params.postId);
-    const {vote} = req.body;
+    const { vote } = req.body;
     const user = req.user;
 
     if (!postId || Number.isNaN(postId)) {
@@ -149,28 +152,41 @@ export const voteOnPost = withAuth(async (req, res) => {
     }
 
     const post = await postService.getPostWithLocation(postId);
-
-    if(!post){
-      return res.status(400).json({ message: "invalid post Id" });
+    if (!post) {
+      return res.status(404).json({ message: "post not found" });
     }
 
-    validateNotOwnPost(user.id, post.posterId);
+    try {
+      validateNotOwnPost(user.id, post.posterId);
+    } catch {
+      return res.status(403).json({ message: "cannot vote on your own post" });
+    }
+
+    // Fetch existing vote first so we can compute the karma delta
+    const existingVote = await postVoteService.getVote(
+      constructVote(0, user.id, postId)
+    );
+    const oldValue = existingVote?.value ?? 0;
 
     const constructedVote = constructVote(vote.value, user.id, postId);
     await postVoteService.voteOnMessage(constructedVote);
 
-    return res.status(201).json({
-      message: "voted successfully",
-    });
-    } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    // Apply karma delta to the post author (handles first vote, switching, and no-ops)
+    const karmaDelta = vote.value - oldValue;
+    if (karmaDelta !== 0) {
+      await updateUserKarma(post.posterId, karmaDelta);
+    }
+
+    return res.status(201).json({ message: "voted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
   }
 });
 
 export const voteOnComment = withAuth(async (req, res) => {
   try {
     const commentId = Number(req.params.id);
-    const {vote} = req.body;
+    const { vote } = req.body;
     const user = req.user;
 
     if (!commentId || Number.isNaN(commentId)) {
@@ -178,20 +194,34 @@ export const voteOnComment = withAuth(async (req, res) => {
     }
 
     const comment = await postCommentService.getPostCommentById(commentId);
-    if(!comment){
-      return res.status(400).json({ message: "invalid comment Id" });
+    if (!comment) {
+      return res.status(404).json({ message: "comment not found" });
     }
 
-    validateNotOwnPost(user.id, comment.commenterId);
+    try {
+      validateNotOwnPost(user.id, comment.commenterId);
+    } catch {
+      return res.status(403).json({ message: "cannot vote on your own comment" });
+    }
+
+    // Fetch existing vote first so we can compute the karma delta
+    const existingVote = await postCommentVoteService.getVote(
+      constructVote(0, user.id, commentId)
+    );
+    const oldValue = existingVote?.value ?? 0;
 
     const constructedVote = constructVote(vote.value, user.id, commentId);
     await postCommentVoteService.voteOnMessage(constructedVote);
 
-    return res.status(201).json({
-      message: "voted successfully",
-    });
-    } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    // Apply karma delta to the comment author
+    const karmaDelta = vote.value - oldValue;
+    if (karmaDelta !== 0) {
+      await updateUserKarma(comment.commenterId, karmaDelta);
+    }
+
+    return res.status(201).json({ message: "voted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
   }
 });
 
@@ -204,14 +234,27 @@ export const deletePostVote = withAuth(async (req, res) => {
       return res.status(400).json({ message: "invalid post Id" });
     }
 
-    const vote = constructVote(0, user.id, postId);
-    await postVoteService.removeVote(vote);
+    const post = await postService.getPostWithLocation(postId);
+    if (!post) {
+      return res.status(404).json({ message: "post not found" });
+    }
 
-    return res.status(200).json({
-      message: "vote removed successfully",
-    });
+    const existingVote = await postVoteService.getVote(
+      constructVote(0, user.id, postId)
+    );
+
+    if (!existingVote) {
+      return res.status(200).json({ message: "no vote to remove" });
+    }
+
+    await postVoteService.removeVote(constructVote(0, user.id, postId));
+
+    // Reverse exactly the karma that was applied when the vote was cast
+    await updateUserKarma(post.posterId, -existingVote.value);
+
+    return res.status(200).json({ message: "vote removed successfully" });
   } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 });
 
@@ -224,13 +267,26 @@ export const deleteCommentVote = withAuth(async (req, res) => {
       return res.status(400).json({ message: "invalid comment Id" });
     }
 
-    const vote = constructVote(0, user.id, commentId);
-    await postCommentVoteService.removeVote(vote);
+    const comment = await postCommentService.getPostCommentById(commentId);
+    if (!comment) {
+      return res.status(404).json({ message: "comment not found" });
+    }
 
-    return res.status(200).json({
-      message: "vote removed successfully",
-    });
+    const existingVote = await postCommentVoteService.getVote(
+      constructVote(0, user.id, commentId)
+    );
+
+    if (!existingVote) {
+      return res.status(200).json({ message: "no vote to remove" });
+    }
+
+    await postCommentVoteService.removeVote(constructVote(0, user.id, commentId));
+
+    // Reverse exactly the karma that was applied when the vote was cast
+    await updateUserKarma(comment.commenterId, -existingVote.value);
+
+    return res.status(200).json({ message: "vote removed successfully" });
   } catch (error: any) {
-    return res.status(404).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 });
