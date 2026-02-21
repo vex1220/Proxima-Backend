@@ -157,4 +157,11 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
       socket.emit("error", error.message || "An unexpected error has occured");
     }
   });
+
+  socket.on("typing", ({ roomId, isTyping }) => {
+  socket.to(String(roomId)).emit("userTyping", {
+    displayId: user.displayId,
+    isTyping,
+  });
+});
 }

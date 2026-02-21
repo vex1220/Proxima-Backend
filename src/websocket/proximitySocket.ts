@@ -45,8 +45,32 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
     }
   });
 
+  socket.on("proximityTyping", async ({ isTyping, latitude, longitude }) => {
+    try {
+      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
+      const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
+
+      const mutualSocketIds = await filterMutuallyNearbyUsers(
+        user.id,
+        { latitude, longitude },
+        nearbyUserIds.filter((id) => id !== user.id),
+        userSocketMap,
+      );
+
+      if (Array.isArray(mutualSocketIds)) {
+        mutualSocketIds.forEach((socketId) => {
+          io.to(socketId).emit("nearbyUserTyping", {
+            displayId: user.displayId,
+            isTyping,
+          });
+        });
+      }
+    } catch (error: any) {
+      // Typing is best-effort — don't surface errors to the client
+    }
+  });
+
   socket.on(
-    "sendProximityMessage",
     async ({ latitude, longitude, content }) => {
       try {
         console.log("[sendProximityMessage] Received:", {
