@@ -5,7 +5,8 @@ import { withAuth } from "../utils/handler";
 import { PostCommentService } from "../services/PostCommentService";
 import { VoteModel } from "../models/voteTypes";
 import { VoteService } from "../services/VoteService";
-import { validateNotOwnPost } from "../utils/voteUtils";
+import { validateNotOwnPost, constructVote } from "../utils/voteUtils";
+
 
 const postService = new PostService();
 const locationService = new LocationService();
@@ -154,7 +155,8 @@ export const voteOnPost = withAuth(async (req, res) => {
 
     validateNotOwnPost(user.id, post.posterId);
 
-    await postVoteService.voteOnMessage(vote);
+    const constructedVote = constructVote(vote, user.id, postId);
+    await postVoteService.voteOnMessage(constructedVote);
 
     return res.status(201).json({
       message: "voted successfully",
@@ -181,7 +183,8 @@ export const voteOnComment = withAuth(async (req, res) => {
 
     validateNotOwnPost(user.id, comment.commenterId);
 
-    await postCommentVoteService.voteOnMessage(vote);
+    const constructedVote = constructVote(vote, user.id, commentId);
+    await postCommentVoteService.voteOnMessage(constructedVote);
 
     return res.status(201).json({
       message: "voted successfully",
