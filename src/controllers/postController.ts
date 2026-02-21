@@ -155,7 +155,7 @@ export const voteOnPost = withAuth(async (req, res) => {
 
     validateNotOwnPost(user.id, post.posterId);
 
-    const constructedVote = constructVote(vote, user.id, postId);
+    const constructedVote = constructVote(vote.value, user.id, postId);
     await postVoteService.voteOnMessage(constructedVote);
 
     return res.status(201).json({
@@ -183,7 +183,7 @@ export const voteOnComment = withAuth(async (req, res) => {
 
     validateNotOwnPost(user.id, comment.commenterId);
 
-    const constructedVote = constructVote(vote, user.id, commentId);
+    const constructedVote = constructVote(vote.value, user.id, commentId);
     await postCommentVoteService.voteOnMessage(constructedVote);
 
     return res.status(201).json({
