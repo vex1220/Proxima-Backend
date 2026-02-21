@@ -17,7 +17,7 @@ const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 
 export const createPost = withAuth(async (req, res) => {
   try {
-    const { locationId, title, content } = req.body;
+    const { locationId, title, content, imageUrl } = req.body;
     const user = req.user;
 
     const location = await locationService.getLocationById(locationId);
@@ -51,6 +51,7 @@ export const createPost = withAuth(async (req, res) => {
       locationId,
       title,
       content,
+      imageUrl,
     });
 
     const postList = await postService.getPostListByLocation(locationId);

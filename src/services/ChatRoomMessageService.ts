@@ -29,11 +29,13 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
     chatRoomId: number,
     senderId: number,
     content: string,
+    imageUrl?: string,
   ) {
     return await chatRoomMessageDao.createChatRoomMessage(
       chatRoomId,
       senderId,
       content,
+       imageUrl,
     );
   }
 

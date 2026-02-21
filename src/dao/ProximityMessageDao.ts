@@ -38,6 +38,7 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
   async createProximityMessage(
     senderId: number,
     content: string,
+    imageUrl?: string,
     latitude: number,
     longitude: number,
   ) {
@@ -45,6 +46,7 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
       data: {
         senderId,
         content,
+        imageUrl: imageUrl ?? null,
         latitude,
         longitude,
       },

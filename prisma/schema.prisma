@@ -67,6 +67,7 @@ model Post {
   createdAt  DateTime      @default(now())
   title      String
   content    String
+  imageUrl   String?
   posterId   Int
   locationId Int
   deleted    Boolean       @default(false)
@@ -82,6 +83,7 @@ model PostComment {
   id          Int               @id @default(autoincrement())
   createdAt   DateTime          @default(now())
   content     String
+  imageUrl   String?
   postId      Int
   commenterId Int
   deleted     Boolean           @default(false)
@@ -132,6 +134,7 @@ model ChatRoomMessage {
   id         Int                   @id @default(autoincrement())
   createdAt  DateTime              @default(now())
   content    String
+  imageUrl   String?
   chatRoomId Int
   senderId   Int
   isReply    Boolean               @default(false)
@@ -158,6 +161,7 @@ model ProximityMessage {
   id        Int      @id @default(autoincrement())
   createdAt DateTime @default(now())
   content   String
+  imageUrl   String?
   senderId  Int
   deleted   Boolean  @default(false)
   latitude  Float

@@ -21,7 +21,9 @@ export class PostService {
       posterId: data.posterId,
       locationId: data.locationId,
       content,
+      imageUrl: data.imageUrl,
       title,
+      
     });
   }
 
@@ -96,6 +98,7 @@ export class PostService {
       id: post.id,
       title: post.title,
       content: post.content,
+      imageUrl: post.imageUrl,
       posterId: post.posterId,
       posterDisplayId: post.poster.displayId,
       postVotes: postVotes,

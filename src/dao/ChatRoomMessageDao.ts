@@ -52,12 +52,14 @@ async getMessageCountByUser(senderId: number): Promise<number> {
     chatRoomId: number,
     senderId: number,
     content: string,
+    imageUrl?: string,
   ) {
     return prisma.chatRoomMessage.create({
       data: {
         chatRoomId,
         senderId,
         content,
+         imageUrl: imageUrl ?? null,
       },
       include: {
         sender: { select: { displayId: true } },

@@ -67,7 +67,7 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
     });
   });
 
-  socket.on("sendMessage", async ({ roomId, content }) => {
+  socket.on("sendMessage", async ({ roomId, content, imageUrl }) => {
     try {
 
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);
@@ -76,12 +76,14 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
         chatRoom.id,
         user.id,
         content,
+        imageUrl,
       );
 
       const messageToSend = {
         ...message,
         chatRoomId: chatRoom.id,
         content: message.content,
+        imageUrl: message.imageUrl,
         senderDisplayId: message.sender.displayId,
         timestamp: message.createdAt,
         messageId: message.id,
