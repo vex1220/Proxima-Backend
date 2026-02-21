@@ -71,6 +71,7 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
   });
 
   socket.on(
+    "sendProximityMessage",
     async ({ latitude, longitude, content }) => {
       try {
         console.log("[sendProximityMessage] Received:", {
