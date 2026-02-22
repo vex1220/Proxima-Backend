@@ -27,14 +27,25 @@ export function validateLength(content?: string, title?: string) {
   return true;
 }
 
-export function validatePost(content?: string, title?: string) {
-  if (isEmptyContent(content)) {
+export function validatePost(content?: string, title?: string, imageUrl?: string) {
+  // Allow image-only posts/comments — content only required if no image provided
+  if (isEmptyContent(content) && !imageUrl) {
     throw new Error("Content is required");
   }
-  const trimmedContent = trimContent(content);
+
+  const trimmedContent = isEmptyContent(content) ? undefined : trimContent(content);
   const trimmedTitle = title !== undefined ? trimContent(title) : undefined;
 
-  validateLength(trimmedContent, trimmedTitle);
+  // Only validate content length if content was actually provided
+  if (trimmedContent) {
+    validateLength(trimmedContent, trimmedTitle);
+  } else if (trimmedTitle !== undefined) {
+    // Still validate title length for image-only posts
+    const t = trimmedTitle;
+    if (t.length > MAXIMUM_TITLE_LENGTH || t.length < MINIMUM_LENGTH) {
+      throw new Error(`Title must be at most ${MAXIMUM_TITLE_LENGTH} and at least ${MINIMUM_LENGTH} characters`);
+    }
+  }
 
   return { content: trimmedContent, title: trimmedTitle };
 }

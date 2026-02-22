@@ -8,12 +8,12 @@ import { VoteModel } from "../models/voteTypes";
 
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
-const postVoteService = new  VoteService(VoteModel.PostVote);
-const postCommentVoteService = new  VoteService(VoteModel.PostCommentVote);
+const postVoteService = new VoteService(VoteModel.PostVote);
+const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 
 export class PostService {
   async createPost(data: CreatePostInput) {
-    const { content, title } = validatePost(data.content, data.title);
+    const { content, title } = validatePost(data.content, data.title, data.imageUrl);
     if (!title) {
       throw new Error("A title is required");
     }
@@ -23,7 +23,6 @@ export class PostService {
       content,
       imageUrl: data.imageUrl,
       title,
-      
     });
   }
 
@@ -38,7 +37,7 @@ export class PostService {
     return await postDao.getPostById(id);
   }
 
-  async getPostWithLocation(id:number) {
+  async getPostWithLocation(id: number) {
     if (!id || Number.isNaN(id)) {
       throw new Error("invalid post id");
     }
@@ -48,7 +47,6 @@ export class PostService {
   async getPostListByLocation(id: number) {
     const posts = await postDao.getPostsByLocation(id);
 
-    // Attach vote counts to each post
     const postsWithVotes = await Promise.all(
       posts.map(async (post) => {
         const voteCount = await postVoteService.getVoteCount(post.id);
@@ -67,7 +65,6 @@ export class PostService {
 
     const postVotes = await postVoteService.getVoteCount(post.id);
 
-    // Get the current user's vote on this post (if logged in)
     let userPostVote: number | null = null;
     if (userId) {
       userPostVote = await postVoteService.getUserVoteValue(userId, post.id);
@@ -81,7 +78,6 @@ export class PostService {
       )
     );
 
-    // Batch-fetch the user's votes on all comments
     let userCommentVotes: Record<number, number> = {};
     if (userId && comments.length > 0) {
       const commentIds = comments.map((c) => c.id);
