@@ -1,13 +1,21 @@
 import express, { Request, Response } from "express";
 import multer from "multer";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { authenticateToken } from "../middleware/auth"; 
+import { authenticateToken } from "../middleware/authMiddleware";
 import { v4 as uuidv4 } from "uuid";
+import rateLimit from "express-rate-limit";
 
 const router = express.Router();
+
+const uploadLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: "Too many uploads, please try again later." },
+});
+
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_, file, cb) => {
     if (!file.mimetype.startsWith("image/")) {
       return cb(new Error("Only image files are allowed"));
@@ -24,11 +32,12 @@ const s3 = new S3Client({
   },
 });
 
-router.post("/image", authenticateToken, upload.single("image"), async (req: Request, res: Response) => {
+router.post("/image", uploadLimiter, authenticateToken, upload.single("image"), async (req: Request, res: Response) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No image provided" });
 
-    const key = `chat-images/${uuidv4()}-${req.file.originalname}`;
+    const ext = req.file.mimetype.split("/")[1] || "jpg";
+    const key = `chat-images/${uuidv4()}.${ext}`;
 
     await s3.send(new PutObjectCommand({
       Bucket: process.env.AWS_BUCKET_NAME!,

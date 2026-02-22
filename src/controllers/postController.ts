@@ -7,6 +7,7 @@ import { VoteModel } from "../models/voteTypes";
 import { VoteService } from "../services/VoteService";
 import { validateNotOwnPost, constructVote } from "../utils/voteUtils";
 import { updateUserKarma } from "../services/userService";
+import { validateImageUrl } from "../utils/validateImageUrl";
 
 
 const postService = new PostService();
@@ -17,8 +18,9 @@ const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 
 export const createPost = withAuth(async (req, res) => {
   try {
-    const { locationId, title, content, imageUrl } = req.body;
+    const { locationId, title, content, imageUrl: rawImageUrl } = req.body;
     const user = req.user;
+    const imageUrl = validateImageUrl(rawImageUrl);
 
     const location = await locationService.getLocationById(locationId);
     if (!location) {
@@ -90,8 +92,9 @@ export const postDetails = withAuth(async (req, res) => {
 export const commentOnPost = withAuth(async (req, res) => {
   try {
     const postId = Number(req.params.postId);
-    const { content } = req.body;
+    const { content, imageUrl: rawImageUrl } = req.body;
     const user = req.user;
+    const imageUrl = validateImageUrl(rawImageUrl);
 
     if (!postId || Number.isNaN(postId)) {
       return res.status(400).json({ message: "invalid post Id" });
@@ -128,6 +131,7 @@ export const commentOnPost = withAuth(async (req, res) => {
       commenterId: user.id,
       postId: post.id,
       content,
+      imageUrl,
     });
 
     const updatedPost = await postService.getPostandPostCommentsById(post.id);

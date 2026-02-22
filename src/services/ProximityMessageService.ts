@@ -29,12 +29,14 @@ export class ProximityMessageService extends AbstractMessageService<ProximityMes
     content: string,
     latitude: number,
     longitude: number,
+    imageUrl?: string,
   ) {
     return await proximityMessageDao.createProximityMessage(
       senderId,
       content,
       latitude,
       longitude,
+      imageUrl,
     );
   }
 }

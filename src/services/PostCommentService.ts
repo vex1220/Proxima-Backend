@@ -16,6 +16,7 @@ export class PostCommentService {
         commenterId: data.commenterId,
         postId: data.postId,
         content,
+        imageUrl: data.imageUrl,
     });
     }
 

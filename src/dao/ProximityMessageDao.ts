@@ -38,9 +38,9 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
   async createProximityMessage(
     senderId: number,
     content: string,
-    imageUrl?: string,
     latitude: number,
     longitude: number,
+    imageUrl?: string,
   ) {
     return prisma.proximityMessage.create({
       data: {

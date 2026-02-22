@@ -7,6 +7,7 @@ import { VoteService } from "../services/VoteService";
 import { getAndVerifyMessage,verifyChatRoomAndUserInRange } from "../utils/chatRoomSocketUtils";
 import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
+import { validateImageUrl } from "../utils/validateImageUrl";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -67,7 +68,8 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
     });
   });
 
-  socket.on("sendMessage", async ({ roomId, content, imageUrl }) => {
+  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl }) => {
+  const imageUrl = validateImageUrl(rawImageUrl);
     try {
 
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);

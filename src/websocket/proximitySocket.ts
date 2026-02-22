@@ -9,6 +9,7 @@ import {
 } from "../utils/redisUserLocation";
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
+import { validateImageUrl } from "../utils/validateImageUrl";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -72,7 +73,9 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
 
   socket.on(
     "sendProximityMessage",
-    async ({ latitude, longitude, content }) => {
+    // AFTER
+    async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
+    const imageUrl = validateImageUrl(rawImageUrl);
       try {
         console.log("[sendProximityMessage] Received:", {
           latitude,
@@ -85,6 +88,7 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
           content,
           latitude,
           longitude,
+          imageUrl,
         );
         if (!message) {
           console.error("[sendProximityMessage] Failed to create message", {
