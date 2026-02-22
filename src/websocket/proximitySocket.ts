@@ -76,7 +76,7 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
     // AFTER
     async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
       try {
-        const imageUrl = validateImageUrl(rawImageUrl);
+        const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
         console.log("[sendProximityMessage] Received:", {
           latitude,
           longitude,

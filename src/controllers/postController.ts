@@ -20,7 +20,7 @@ export const createPost = withAuth(async (req, res) => {
   try {
     const { locationId, title, content, imageUrl: rawImageUrl } = req.body;
     const user = req.user;
-    const imageUrl = validateImageUrl(rawImageUrl);
+    const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
     const location = await locationService.getLocationById(locationId);
     if (!location) {
@@ -94,7 +94,7 @@ export const commentOnPost = withAuth(async (req, res) => {
     const postId = Number(req.params.postId);
     const { content, imageUrl: rawImageUrl } = req.body;
     const user = req.user;
-    const imageUrl = validateImageUrl(rawImageUrl);
+    const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
     if (!postId || Number.isNaN(postId)) {
       return res.status(400).json({ message: "invalid post Id" });
