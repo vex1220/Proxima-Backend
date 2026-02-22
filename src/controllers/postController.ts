@@ -56,7 +56,7 @@ export const createPost = withAuth(async (req, res) => {
       imageUrl,
     });
 
-    const postList = await postService.getPostListByLocation(locationId);
+    const postList = await postService.getPostListByLocation(locationId, user.id);
 
     return res.status(201).json({
       message: `successfully posted`,
@@ -134,7 +134,7 @@ export const commentOnPost = withAuth(async (req, res) => {
       imageUrl,
     });
 
-    const updatedPost = await postService.getPostandPostCommentsById(post.id);
+    const updatedPost = await postService.getPostandPostCommentsById(post.id, user.id);
 
     return res.status(201).json({
       message: "Post comment added",

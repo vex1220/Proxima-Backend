@@ -5,6 +5,7 @@ import { validatePost } from "../utils/postValidator";
 import { PostCommentService } from "./PostCommentService";
 import { VoteService } from "./VoteService";
 import { VoteModel } from "../models/voteTypes";
+import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
 
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
@@ -44,11 +45,19 @@ export class PostService {
     return await postDao.getPostByIdWithLocation(id);
   }
 
-  async getPostListByLocation(id: number) {
-    const posts = await postDao.getPostsByLocation(id);
+  /** Returns posts for a location, filtered to hide posts from blocked users */
+  async getPostListByLocation(locationId: number, viewerUserId?: number) {
+    const posts = await postDao.getPostsByLocation(locationId);
+
+    // If we have a viewer, filter out posts from users they've blocked (or who blocked them)
+    const blockedUserIds = viewerUserId
+      ? new Set(await getAllBlockRelatedUserIdsDao(viewerUserId))
+      : new Set<number>();
+
+    const visiblePosts = posts.filter((post) => !blockedUserIds.has(post.posterId));
 
     const postsWithVotes = await Promise.all(
-      posts.map(async (post) => {
+      visiblePosts.map(async (post) => {
         const voteCount = await postVoteService.getVoteCount(post.id);
         return { ...post, voteCount };
       })
@@ -57,6 +66,7 @@ export class PostService {
     return postsWithVotes;
   }
 
+  /** Returns a post and its comments, with blocked users' comments filtered out */
   async getPostandPostCommentsById(id: number, userId?: number) {
     const post = await postDao.getPostById(id);
     if (!post) {
@@ -70,12 +80,19 @@ export class PostService {
       userPostVote = await postVoteService.getUserVoteValue(userId, post.id);
     }
 
-    const comments = await postCommentService.getPostCommentsByPost(post.id);
+    const allComments = await postCommentService.getPostCommentsByPost(post.id);
+
+    // Filter out comments from blocked users
+    const blockedUserIds = userId
+      ? new Set(await getAllBlockRelatedUserIdsDao(userId))
+      : new Set<number>();
+
+    const comments = allComments.filter(
+      (comment) => !blockedUserIds.has(comment.commenterId)
+    );
 
     const commentVotes = await Promise.all(
-      comments.map((comment) =>
-        postCommentVoteService.getVoteCount(comment.id)
-      )
+      comments.map((comment) => postCommentVoteService.getVoteCount(comment.id))
     );
 
     let userCommentVotes: Record<number, number> = {};

@@ -1,15 +1,15 @@
 import { Server, Socket } from "socket.io";
 import {
   getNearbyUsers,
-  getNearbyUsersCount,
   saveUserLocation,
   getUserLocation,
   filterMutuallyNearbyUsers,
-  removeUserLocation
+  removeUserLocation,
 } from "../utils/redisUserLocation";
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
+import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -24,25 +24,30 @@ export function setupProximitySocket(
     };
   },
 ) {
-socket.on("updateLocation", async ({ latitude, longitude }) => {
+  socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
       await saveUserLocation(user.id, { latitude, longitude });
 
       const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
-      const otherUserIds = nearbyUserIds.filter((id) => id !== user.id);
+
+      // Filter out blocked users before counting nearby users
+      const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+      const visibleNearbyUserIds = nearbyUserIds.filter(
+        (id) => id !== user.id && !blockedUserIds.has(id)
+      );
 
       const mutualSocketIds = await filterMutuallyNearbyUsers(
         user.id,
         { latitude, longitude },
-        otherUserIds,
+        visibleNearbyUserIds,
         userSocketMap,
       );
 
       const nearbyCount = Array.isArray(mutualSocketIds) ? mutualSocketIds.length : 0;
       socket.emit("nearbyUserCount", { count: nearbyCount });
     } catch (error: any) {
-      socket.emit("error", "An unexpected error has occured");
+      socket.emit("error", "An unexpected error has occurred");
     }
   });
 
@@ -51,10 +56,16 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
       const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
+      // Filter out blocked users from typing indicators too
+      const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+      const visibleNearbyUserIds = nearbyUserIds.filter(
+        (id) => id !== user.id && !blockedUserIds.has(id)
+      );
+
       const mutualSocketIds = await filterMutuallyNearbyUsers(
         user.id,
         { latitude, longitude },
-        nearbyUserIds.filter((id) => id !== user.id),
+        visibleNearbyUserIds,
         userSocketMap,
       );
 
@@ -73,16 +84,10 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
 
   socket.on(
     "sendProximityMessage",
-    // AFTER
     async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
-        console.log("[sendProximityMessage] Received:", {
-          latitude,
-          longitude,
-          content,
-          userId: user.id,
-        });
+
         const message = await proximityMessageService.createProximityMessage(
           user.id,
           content,
@@ -90,22 +95,13 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
           longitude,
           imageUrl,
         );
+
         if (!message) {
-          console.error("[sendProximityMessage] Failed to create message", {
-            userId: user.id,
-            content,
-            latitude,
-            longitude,
-          });
           return socket.emit("error", "Failed to create proximity message");
         }
-        console.log("[sendProximityMessage] Created message:", message);
 
         const currentUserLocation = await getUserLocation(String(user.id));
         if (!currentUserLocation) {
-          console.error("[sendProximityMessage] No user location found", {
-            userId: user.id,
-          });
           return socket.emit("error", "Action not Authorized");
         }
 
@@ -123,29 +119,22 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
           currentUserLocation.longitude,
           user.preferences?.proximityRadius ?? 500,
         );
-        console.log("[sendProximityMessage] nearbyUsers:", nearbyUsers);
-        console.log("[sendProximityMessage] userSocketMap:", userSocketMap);
 
         if (!nearbyUsers || nearbyUsers.length === 0) {
-          console.warn("[sendProximityMessage] No nearby users found", {
-            userId: user.id,
-          });
           return socket.emit("error", "no one nearby");
         }
+
+        // Filter out blocked users before determining who to broadcast to
+        const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+        const visibleNearbyUsers = nearbyUsers.filter(
+          (id) => !blockedUserIds.has(id)
+        );
 
         const usersToBroadCastTo = await filterMutuallyNearbyUsers(
           user.id,
           currentUserLocation,
-          nearbyUsers,
+          visibleNearbyUsers,
           userSocketMap,
-        );
-        console.log(
-          "[sendProximityMessage] usersToBroadCastTo (mutuallyNearby socketIds):",
-          usersToBroadCastTo,
-        );
-        console.log(
-          "[sendProximityMessage] Broadcasting message content:",
-          content,
         );
 
         if (Array.isArray(usersToBroadCastTo)) {
@@ -153,20 +142,17 @@ socket.on("updateLocation", async ({ latitude, longitude }) => {
             io.to(socketId).emit("receiveProximityMessage", messageToSend);
           });
         } else if (typeof usersToBroadCastTo === "string") {
-          io.to(usersToBroadCastTo).emit(
-            "receiveProximityMessage",
-            messageToSend,
-          );
+          io.to(usersToBroadCastTo).emit("receiveProximityMessage", messageToSend);
         }
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
-        socket.emit("error", "An unexpected error has occured");
+        socket.emit("error", "An unexpected error has occurred");
       }
     },
   );
 
   socket.on("disconnect", () => {
-        removeUserLocation(user.id);
-        console.log(`User ${user.displayId} has been removed from redis server`);
-      });
+    removeUserLocation(user.id);
+    console.log(`User ${user.displayId} has been removed from redis server`);
+  });
 }

@@ -3,13 +3,14 @@ import { userFromAccessToken } from "../services/authService";
 import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
-import { User_Settings } from "@prisma/client";
 import { removeUserLocation } from "../utils/redisUserLocation";
 
-const userSocketMap : {[userId:number]: {
-  socketId: string,
-  proximityRadius: number
-}} = {};
+const userSocketMap: {
+  [userId: number]: {
+    socketId: string;
+    proximityRadius: number;
+  };
+} = {};
 
 export function setupSocket(io: Server) {
   io.use(async (socket, next) => {
@@ -19,17 +20,18 @@ export function setupSocket(io: Server) {
         return next(new Error("No token provided"));
       }
 
-      const user = await userFromAccessToken(token) as UserWithPreferences;
+      const user = (await userFromAccessToken(token)) as UserWithPreferences;
       if (!user) {
         return next(new Error("User no longer exists"));
       }
-      
+
       if (!user.isVerified) {
-    return next(new Error("User email is not verified"));
-    }
-    if (user.deleted) {
-    return next(new Error("User no longer exists"));
-    } 
+        return next(new Error("User email is not verified"));
+      }
+      if (user.deleted) {
+        return next(new Error("User no longer exists"));
+      }
+
       socket.user = user;
       next();
     } catch (err) {
@@ -39,22 +41,23 @@ export function setupSocket(io: Server) {
 
   io.on("connection", (socket) => {
     const user = socket.user as UserWithPreferences;
-     if (!user) {
-        return (new Error("User no longer exists"));
-      }
+    if (!user) {
+      return new Error("User no longer exists");
+    }
 
-      userSocketMap [user.id] = {
-        socketId: socket.id,
-        proximityRadius: user.preferences?.proximityRadius ?? 1600,
-      }
+    userSocketMap[user.id] = {
+      socketId: socket.id,
+      proximityRadius: user.preferences?.proximityRadius ?? 1600,
+    };
 
     console.log(`User ${user.displayId} connected via WebSocket`);
 
-    setupChatRoomSocket(io,socket,user);
-    setupProximitySocket(io,socket,user,userSocketMap);
+    // Both socket handlers now receive the userSocketMap for block filtering
+    setupChatRoomSocket(io, socket, user, userSocketMap);
+    setupProximitySocket(io, socket, user, userSocketMap);
 
     socket.on("disconnect", () => {
-      delete userSocketMap[user.id]
+      delete userSocketMap[user.id];
       console.log(`User ${user.displayId} disconnected`);
     });
   });

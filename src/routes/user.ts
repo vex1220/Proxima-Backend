@@ -3,6 +3,7 @@ import { authenticateToken } from "../middleware/authMiddleware";
 import { body } from "express-validator";
 import { validateRequest } from "../middleware/validateRequest";
 import { changeUsername, changeUserProximityRadius, deleteUser, userDetails, userStatistics } from "../controllers/userController";
+import { blockUser, unblockUser, getBlockList } from "../controllers/blockController";
 
 const router = Router();
 
@@ -10,7 +11,6 @@ router.use(authenticateToken);
 
 router.post("/delete", deleteUser);
 
-//making sure user doesnt accidently leak their email
 router.post(
   "/changeUsername",
   [
@@ -23,11 +23,15 @@ router.post(
   changeUsername,
 );
 
-router.post("/changeProximityRadius",changeUserProximityRadius)
+router.post("/changeProximityRadius", changeUserProximityRadius);
 
-router.get("/me",userDetails);
+router.get("/me", userDetails);
 
 router.get("/stats", userStatistics);
 
+// Block routes
+router.post("/block", blockUser);
+router.post("/unblock", unblockUser);
+router.get("/blocks", getBlockList);
 
 export default router;

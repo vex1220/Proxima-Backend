@@ -26,6 +26,8 @@ model User {
   preferences      User_Settings?
   FeedbackMessages FeedbackMessage[]
   posts            Post[]
+  blocksGiven      UserBlock[] @relation("BlocksMade")
+  blocksReceived   UserBlock[] @relation("BlocksReceived")
   postComments     PostComment[]
 }
 
@@ -197,4 +199,15 @@ model FeedbackMessage {
 
   @@index([category])
   @@index([userId])
+}
+
+model UserBlock {
+  id        Int      @id @default(autoincrement())
+  blockerId Int
+  blockedId Int
+  createdAt DateTime @default(now())
+  blocker   User     @relation("BlocksMade", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
 }
