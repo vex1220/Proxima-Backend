@@ -3,6 +3,7 @@ import { Server } from "socket.io";
 import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
+import { Request, Response, NextFunction } from "express";
 import authRoutes from "./routes/auth";
 import chatRoomRoutes from "./routes/chatRoom";
 import locationRoutes from "./routes/location";
@@ -11,21 +12,9 @@ import { setupSocket } from "./websocket/setupSocket";
 import helmet from "helmet";
 import logger from "./utils/logger";
 import rateLimit from "express-rate-limit";
-import feedbackRoutes from "./routes/feedback"
+import feedbackRoutes from "./routes/feedback";
 import postRoutes from "./routes/post";
 import uploadRouter from "./routes/upload";
-
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, 
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    message: "Too many requests from this IP, please try again later."
-  }
-});
-
-import { Request, Response, NextFunction } from "express";
 
 dotenv.config();
 
@@ -43,14 +32,41 @@ const corsOptions = {
   credentials: true,
 };
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    message: "Too many requests from this IP, please try again later.",
+  },
+});
+
+// ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: false }));
 app.use((req, res, next) => {
-  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
-    return next(); 
+  if (req.headers["content-type"]?.startsWith("multipart/form-data")) {
+    return next();
   }
   express.json()(req, res, next);
 });
+
+// ── Routes ────────────────────────────────────────────────────────────────────
+app.use("/api/", apiLimiter);
+app.use("/api/auth", authRoutes);
+app.use("/api/chatroom", chatRoomRoutes);
+app.use("/api/user", userRoutes);
+app.use("/api/feedback", feedbackRoutes);
+app.use("/api/location", locationRoutes);
+app.use("/api/post", postRoutes);
+app.use("/upload", uploadRouter);
+
+app.get("/", (_req, res) => {
+  res.json({ status: "Proxima API running" });
+});
+
+// ── Error handler (must be last) ──────────────────────────────────────────────
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
   res.status(err.status || 500).json({
@@ -59,21 +75,7 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-
-
-app.use("/api/", apiLimiter);
-app.use("/api/auth", authRoutes);
-app.use("/api/chatroom", chatRoomRoutes);
-app.use("/api/user", userRoutes );
-app.use("/api/feedback", feedbackRoutes );
-app.use("/api/location", locationRoutes);
-app.use("/api/post",postRoutes);
-app.use("/upload", uploadRouter);
-
-app.get("/", (_req, res) => {
-  res.json({ status: "Proxima API running" });
-});
-
+// ── Server ────────────────────────────────────────────────────────────────────
 const httpServer = createServer(app);
 
 const io = new Server(httpServer, {
@@ -93,5 +95,5 @@ if (require.main === module) {
     logger.info(`Server running on http://localhost:${PORT}`);
   });
 }
-//work damn it
+
 export default app;
