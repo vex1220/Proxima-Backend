@@ -14,7 +14,7 @@ export class PostCommentService {
     return await postCommentDao.createPostComment({
       commenterId: data.commenterId,
       postId: data.postId,
-      content,
+      content: content ?? "",
       imageUrl: data.imageUrl,
     });
   }

@@ -20,7 +20,7 @@ export class PostService {
     return await postDao.createPost({
       posterId: data.posterId,
       locationId: data.locationId,
-      content,
+      content: content ?? "",
       imageUrl: data.imageUrl,
       title,
     });
