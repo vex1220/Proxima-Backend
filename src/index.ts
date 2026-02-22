@@ -14,6 +14,7 @@ import logger from "./utils/logger";
 import rateLimit from "express-rate-limit";
 import feedbackRoutes from "./routes/feedback";
 import postRoutes from "./routes/post";
+import feedRoutes from "./routes/feed";
 import uploadRouter from "./routes/upload";
 
 dotenv.config();
@@ -60,6 +61,7 @@ app.use("/api/user", userRoutes);
 app.use("/api/feedback", feedbackRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/post", postRoutes);
+app.use("/api/feed", feedRoutes);
 app.use("/upload", uploadRouter);
 
 app.get("/", (_req, res) => {

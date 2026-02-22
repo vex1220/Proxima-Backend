@@ -42,5 +42,24 @@ async getPostsByLocation(locationId: number) {
     async getPostsByUser(userId:number){
         return prisma.post.findMany({where : {posterId: userId}});
     }
-}
 
+    async getPostsByLocationIds(locationIds: number[]) {
+        if (locationIds.length === 0) return [];
+        return prisma.post.findMany({
+            where: { locationId: { in: locationIds }, deleted: false },
+            select: {
+                id: true,
+                title: true,
+                content: true,
+                imageUrl: true,
+                posterId: true,
+                locationId: true,
+                createdAt: true,
+                poster:   { select: { displayId: true } },
+                location: { select: { name: true } },
+                _count:   { select: { comments: { where: { deleted: false } } } },
+            },
+            orderBy: { createdAt: "desc" },
+        });
+    }
+}

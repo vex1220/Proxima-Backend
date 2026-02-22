@@ -66,6 +66,42 @@ export class PostService {
     return postsWithVotes;
   }
 
+  async getFeedPosts(locationIds: number[], viewerUserId: number) {
+    const rawPosts = await postDao.getPostsByLocationIds(locationIds);
+
+    // Filter out the viewer's own posts and blocked users
+    const blockedIds = new Set(await getAllBlockRelatedUserIdsDao(viewerUserId));
+    const visible = rawPosts.filter(
+      (p) => p.posterId !== viewerUserId && !blockedIds.has(p.posterId)
+    );
+
+    if (visible.length === 0) return [];
+
+    // Batch-fetch user votes in a single query
+    const postIds = visible.map((p) => p.id);
+    const userVoteMap = await postVoteService.getUserVotesForTargets(viewerUserId, postIds);
+
+    // Batch-fetch vote counts (aggregate per post)
+    const voteCounts = await Promise.all(
+      visible.map((p) => postVoteService.getVoteCount(p.id))
+    );
+
+    return visible.map((p, idx) => ({
+      id:              p.id,
+      title:           p.title,
+      content:         p.content ?? "",
+      imageUrl:        p.imageUrl ?? null,
+      posterId:        p.posterId,
+      posterDisplayId: p.poster.displayId,
+      locationId:      p.locationId,
+      locationName:    p.location.name,
+      createdAt:       p.createdAt,
+      voteCount:       voteCounts[idx],
+      userVote:        userVoteMap[p.id] ?? null,
+      commentCount:    p._count.comments,
+    }));
+  }
+
   /** Returns a post and its comments, with blocked users' comments filtered out */
   async getPostandPostCommentsById(id: number, userId?: number) {
     const post = await postDao.getPostById(id);
