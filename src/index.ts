@@ -45,7 +45,12 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(helmet({ crossOriginResourcePolicy: false }));
-app.use(express.json());
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.startsWith('multipart/form-data')) {
+    return next(); 
+  }
+  express.json()(req, res, next);
+});
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
   res.status(err.status || 500).json({
