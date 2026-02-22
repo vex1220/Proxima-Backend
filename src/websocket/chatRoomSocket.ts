@@ -69,9 +69,8 @@ export function setupChatRoomSocket(io: Server, socket: Socket, user: User) {
   });
 
   socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl }) => {
-  const imageUrl = validateImageUrl(rawImageUrl);
     try {
-
+  const imageUrl = validateImageUrl(rawImageUrl);
       const chatRoom = await verifyChatRoomAndUserInRange(roomId,user.id);
 
       const message = await chatRoomMessageService.createChatRoomMessage(
