@@ -9,6 +9,10 @@ export async function blockUser(req: Request, res: Response) {
     const { displayId } = req.body;
     const requester = req.user;
 
+    if (!requester) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+
     if (!displayId) {
       return res.status(400).json({ message: "displayId is required" });
     }
@@ -31,6 +35,10 @@ export async function unblockUser(req: Request, res: Response) {
     const { displayId } = req.body;
     const requester = req.user;
 
+    if (!requester) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+
     if (!displayId) {
       return res.status(400).json({ message: "displayId is required" });
     }
@@ -51,6 +59,11 @@ export async function unblockUser(req: Request, res: Response) {
 export async function getBlockList(req: Request, res: Response) {
   try {
     const requester = req.user;
+
+    if (!requester) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+
     const blocks = await blockService.getBlockList(requester.id);
 
     return res.status(200).json({
