@@ -44,6 +44,7 @@
     "@types/node": "^20.19.30",
     "@types/socket.io-client": "^1.4.36",
     "@types/supertest": "^6.0.3",
+    "@types/uuid": "^10.0.0",
     "jest": "^30.2.0",
     "nodemon": "^3.0.2",
     "socket.io-client": "^4.8.3",
