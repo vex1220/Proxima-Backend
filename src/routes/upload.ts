@@ -44,7 +44,6 @@ router.post("/image", uploadLimiter, authenticateToken, upload.single("image"), 
       Key: key,
       Body: req.file.buffer,
       ContentType: req.file.mimetype,
-      ACL: "public-read",
     }));
 
     const imageUrl = `https://${process.env.AWS_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
