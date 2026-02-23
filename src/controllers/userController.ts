@@ -6,6 +6,9 @@ import {
   setUserDeleted,
   setUserDisplayId,
   userNameInUse,
+  suspendUser,
+  unsuspendUser,
+  getSuspendedUsers,
 } from "../services/userService";
 import { updateUserProximityRadius } from "../dao/userServiceDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
@@ -85,7 +88,8 @@ export async function userDetails(req: Request, res: Response) {
       created: user.createdAt,
       message: "user details retrieved",
       isAdmin: user.isAdmin,
-      isEmailVerified: user.isVerified
+      isEmailVerified: user.isVerified,
+      suspendedUntil: (user as any).suspendedUntil ?? null,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
@@ -144,3 +148,79 @@ export async function changeUserProximityRadius(req: Request, res: Response) {
 }
 }
 
+
+// =============================================================================
+// ADMIN — SUSPENSION
+// =============================================================================
+
+/**
+ * POST /user/admin/suspend
+ * Body: { displayId: string, durationMinutes: number }
+ * Suspends a user for the given number of minutes.
+ */
+export async function suspendUserHandler(req: Request, res: Response) {
+  try {
+    const { displayId, durationMinutes } = req.body;
+
+    if (!displayId || typeof displayId !== "string") {
+      return res.status(400).json({ message: "displayId is required" });
+    }
+    if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
+      return res.status(400).json({ message: "durationMinutes must be a positive number" });
+    }
+
+    const target = await getUserByDisplayId(displayId);
+    if (!target) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    if (target.isAdmin) {
+      return res.status(403).json({ message: "Cannot suspend an admin" });
+    }
+
+    const updated = await suspendUser(target.id, durationMinutes);
+    return res.status(200).json({
+      message: `${displayId} has been suspended`,
+      suspendedUntil: (updated as any).suspendedUntil,
+    });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+/**
+ * POST /user/admin/unsuspend
+ * Body: { displayId: string }
+ * Immediately lifts a user's suspension.
+ */
+export async function unsuspendUserHandler(req: Request, res: Response) {
+  try {
+    const { displayId } = req.body;
+
+    if (!displayId || typeof displayId !== "string") {
+      return res.status(400).json({ message: "displayId is required" });
+    }
+
+    const target = await getUserByDisplayId(displayId);
+    if (!target) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await unsuspendUser(target.id);
+    return res.status(200).json({ message: `${displayId} has been unsuspended` });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
+/**
+ * GET /user/admin/suspended
+ * Returns all currently-suspended users.
+ */
+export async function getSuspendedUsersHandler(_req: Request, res: Response) {
+  try {
+    const users = await getSuspendedUsers();
+    return res.status(200).json({ suspendedUsers: users });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+}

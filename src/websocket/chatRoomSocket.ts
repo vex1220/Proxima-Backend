@@ -9,6 +9,7 @@ import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { isUserSuspended } from "../services/userService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -76,6 +77,13 @@ export function setupChatRoomSocket(
   socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl }) => {
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
+
+      // Block suspended users from sending messages
+      if (await isUserSuspended(user as any)) {
+        const until = (user as any).suspendedUntil as Date;
+        return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
+      }
+
       const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
 
       const message = await chatRoomMessageService.createChatRoomMessage(

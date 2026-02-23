@@ -10,6 +10,7 @@ import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { isUserSuspended } from "../services/userService";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -87,6 +88,12 @@ export function setupProximitySocket(
     async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
+
+        // Block suspended users from sending proximity messages
+        if (await isUserSuspended(user as any)) {
+          const until = (user as any).suspendedUntil as Date;
+          return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
+        }
 
         const message = await proximityMessageService.createProximityMessage(
           user.id,

@@ -9,6 +9,9 @@ import {
   updateUserProximityRadius,
   updateUserKarmaDao,
   setUserVerifiedDao,
+  suspendUserDao,
+  unsuspendUserDao,
+  getSuspendedUsersDao,
 } from "../dao/userServiceDao";
 
 export async function createUser(
@@ -69,4 +72,38 @@ export async function getUserKarma(userId: number) {
 
 export async function setUserVerified(userId: number) {
   return await setUserVerifiedDao(userId);
+}
+
+// ─── Suspension ───────────────────────────────────────────────────────────────
+
+/**
+ * Suspend a user until the given date.
+ * @param durationMinutes  How long the suspension should last.
+ */
+export async function suspendUser(userId: number, durationMinutes: number) {
+  const until = new Date(Date.now() + durationMinutes * 60 * 1000);
+  return suspendUserDao(userId, until);
+}
+
+/** Immediately lift a suspension. */
+export async function unsuspendUser(userId: number) {
+  return unsuspendUserDao(userId);
+}
+
+/** Return all currently-suspended users (suspendedUntil > now). */
+export async function getSuspendedUsers() {
+  return getSuspendedUsersDao();
+}
+
+/**
+ * Returns true if the user is currently suspended.
+ * Performs a lazy auto-lift: if suspendedUntil is in the past the field
+ * is cleared and false is returned so the user isn't penalised again.
+ */
+export async function isUserSuspended(user: { id: number; suspendedUntil: Date | null }): Promise<boolean> {
+  if (!user.suspendedUntil) return false;
+  if (user.suspendedUntil > new Date()) return true;
+  // Suspension has expired — lift it lazily
+  await unsuspendUserDao(user.id);
+  return false;
 }
