@@ -35,7 +35,8 @@ export class PostDao{
 async getPostsByLocation(locationId: number) {
   return prisma.post.findMany({
     where: { locationId, deleted: false },
-    select: { id: true, title: true, content: true, posterId: true, createdAt: true }
+    select: { id: true, title: true, content: true, imageUrl: true, posterId: true, locationId: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
   });
 }
 
