@@ -16,6 +16,7 @@ import feedbackRoutes from "./routes/feedback";
 import postRoutes from "./routes/post";
 import feedRoutes from "./routes/feed";
 import uploadRouter from "./routes/upload";
+import reportRoutes from "./routes/report";
 
 dotenv.config();
 
@@ -62,6 +63,7 @@ app.use("/api/feedback", feedbackRoutes);
 app.use("/api/location", locationRoutes);
 app.use("/api/post", postRoutes);
 app.use("/api/feed", feedRoutes);
+app.use("/api/report", reportRoutes);
 app.use("/upload", uploadRouter);
 
 app.get("/", (_req, res) => {
@@ -89,9 +91,6 @@ const io = new Server(httpServer, {
 });
 setupSocket(io);
 
-// Only start the server when this file is run directly. Tests and other
-// consumers that import `app` should create and control the HTTP server
-// themselves to avoid port conflicts.
 if (require.main === module) {
   httpServer.listen(PORT, () => {
     logger.info(`Server running on http://localhost:${PORT}`);

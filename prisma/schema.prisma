@@ -211,3 +211,36 @@ model UserBlock {
 
   @@unique([blockerId, blockedId])
 }
+
+// ─── Reporting ────────────────────────────────────────────────────────────────
+
+enum ContentType {
+  POST
+  POST_COMMENT
+  CHAT_MESSAGE
+  PROXIMITY_MESSAGE
+}
+
+model Report {
+  id Int @id @default(autoincrement())
+
+  reporterId Int
+
+  reportedUserId        Int
+  reportedUserDisplayId String
+
+  contentType ContentType
+  contentId   Int
+
+  content  String?
+  imageUrl String?
+
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([reporterId, contentType, contentId])
+
+  @@index([contentType, contentId])
+  @@index([reportedUserId])
+  @@index([resolved])
+}
