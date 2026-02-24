@@ -146,8 +146,8 @@ export async function changeUserProximityRadius(req: Request, res: Response) {
 }
 
 // ── Feed radius (how far out the feed searches for locations) ─────────────────
-const FEED_RADIUS_MIN_M = 1609;   // 1 mile
-const FEED_RADIUS_MAX_M = 80_467; // 50 miles
+const FEED_RADIUS_MIN_M = 161;   // 0.1 miles
+const FEED_RADIUS_MAX_M = 9_656; // 6 miles
 
 export async function changeUserFeedRadius(req: Request, res: Response) {
   try {
@@ -161,10 +161,10 @@ export async function changeUserFeedRadius(req: Request, res: Response) {
       return res.status(400).json({ message: "feedRadius must be a number" });
     }
     if (newFeedRadius < FEED_RADIUS_MIN_M) {
-      return res.status(400).json({ message: `Minimum feed radius is ${FEED_RADIUS_MIN_M}m (1 mile)` });
+      return res.status(400).json({ message: `Minimum feed radius is ${FEED_RADIUS_MIN_M}m (0.1 miles)` });
     }
     if (newFeedRadius > FEED_RADIUS_MAX_M) {
-      return res.status(400).json({ message: `Maximum feed radius is ${FEED_RADIUS_MAX_M}m (50 miles)` });
+      return res.status(400).json({ message: `Maximum feed radius is ${FEED_RADIUS_MAX_M}m (6 miles)` });
     }
 
     await updateUserFeedRadius(user.id, newFeedRadius);
