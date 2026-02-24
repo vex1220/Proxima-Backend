@@ -78,6 +78,7 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
       ? {
           id: message.replyTo.id,
           content: message.replyTo.content,
+          imageUrl: message.replyTo.imageUrl ?? null,
           senderDisplayId: message.replyTo.sender?.displayId ?? "Unknown",
         }
       : null,

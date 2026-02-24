@@ -111,6 +111,9 @@ export function setupChatRoomSocket(
               content: message.replyTo.deleted
                 ? "Message Has Been Deleted"
                 : message.replyTo.content,
+              imageUrl: message.replyTo.deleted
+                ? null
+                : message.replyTo.imageUrl,
               senderDisplayId: message.replyTo.sender.displayId,
             }
           : null,

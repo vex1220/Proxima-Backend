@@ -81,13 +81,13 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
           ? "User no Longer exists"
           : msg.sender.displayId,
       },
-      // Sanitize the reply-to preview: if the parent was deleted, hide its content
       replyTo: msg.replyTo
         ? {
             id: msg.replyTo.id,
             content: msg.replyTo.deleted
               ? "Message Has Been Deleted"
               : msg.replyTo.content,
+            imageUrl: msg.replyTo.deleted ? null : msg.replyTo.imageUrl,
             sender: msg.replyTo.sender,
           }
         : null,
