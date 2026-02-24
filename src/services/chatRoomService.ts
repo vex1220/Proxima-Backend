@@ -1,4 +1,3 @@
-import { ChatRoomMessage } from "@prisma/client";
 import { ChatRoomMessageService } from "./ChatRoomMessageService";
 import {
   createRoomDao,
@@ -70,10 +69,17 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
     )
   );
 
-  return visibleMessages.map((message: ChatRoomMessage, idx) => ({
+  return visibleMessages.map((message: any, idx: number) => ({
     ...message,
     isOwnMessage: message.senderId === userId,
     voteCount: voteCounts[idx],
     userVote: userVotes[idx]?.value ?? null,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          content: message.replyTo.content,
+          senderDisplayId: message.replyTo.sender?.displayId ?? "Unknown",
+        }
+      : null,
   }));
 }

@@ -74,7 +74,7 @@ export function setupChatRoomSocket(
     });
   });
 
-  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl }) => {
+  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId }) => {
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
@@ -91,6 +91,7 @@ export function setupChatRoomSocket(
         user.id,
         content,
         imageUrl,
+        replyToId ?? undefined,
       );
 
       const messageToSend = {
@@ -102,6 +103,17 @@ export function setupChatRoomSocket(
         timestamp: message.createdAt,
         messageId: message.id,
         userId: user.id,
+        isReply: message.isReply,
+        replyToId: message.replyToId,
+        replyTo: message.replyTo
+          ? {
+              id: message.replyTo.id,
+              content: message.replyTo.deleted
+                ? "Message Has Been Deleted"
+                : message.replyTo.content,
+              senderDisplayId: message.replyTo.sender.displayId,
+            }
+          : null,
       };
 
       // Build a reverse map: socketId → userId for block filtering

@@ -30,12 +30,28 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
     senderId: number,
     content: string,
     imageUrl?: string,
+    replyToId?: number,
   ) {
+    // If replying, verify the parent message exists and belongs to this chatroom
+    if (replyToId != null) {
+      const parentMessage = await chatRoomMessageDao.getMessageById(replyToId);
+      if (!parentMessage) {
+        throw new Error("The message you are replying to does not exist");
+      }
+      if (parentMessage.chatRoomId !== chatRoomId) {
+        throw new Error("Cannot reply to a message in a different chatroom");
+      }
+      if (parentMessage.deleted) {
+        throw new Error("Cannot reply to a deleted message");
+      }
+    }
+
     return await chatRoomMessageDao.createChatRoomMessage(
       chatRoomId,
       senderId,
       content,
-       imageUrl,
+      imageUrl,
+      replyToId,
     );
   }
 
@@ -48,23 +64,33 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
   async getLatestChatRoomMessagesByChatRoom(
     chatRoomId: number,
     count: number,
-  ): Promise<(ChatRoomMessage & { sender: { displayId: string } })[]> {
+  ) {
     const messages =
       await chatRoomMessageDao.getLatestChatRoomMessagesByChatRoom(
         chatRoomId,
         count,
       );
-    return messages.map((ChatRoomMessage) => ({
-      ...ChatRoomMessage,
-      content: ChatRoomMessage.deleted
+    return messages.map((msg) => ({
+      ...msg,
+      content: msg.deleted
         ? "ChatRoomMessage Has Been Deleted"
-        : ChatRoomMessage.content,
+        : msg.content,
       sender: {
-        ...ChatRoomMessage.sender,
-        displayId: ChatRoomMessage.sender.deleted
+        ...msg.sender,
+        displayId: msg.sender.deleted
           ? "User no Longer exists"
-          : ChatRoomMessage.sender.displayId,
+          : msg.sender.displayId,
       },
+      // Sanitize the reply-to preview: if the parent was deleted, hide its content
+      replyTo: msg.replyTo
+        ? {
+            id: msg.replyTo.id,
+            content: msg.replyTo.deleted
+              ? "Message Has Been Deleted"
+              : msg.replyTo.content,
+            sender: msg.replyTo.sender,
+          }
+        : null,
     }));
   }
 

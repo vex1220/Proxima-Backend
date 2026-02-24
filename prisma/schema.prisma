@@ -146,6 +146,8 @@ model ChatRoomMessage {
   deleted    Boolean               @default(false)
   chatRoom   ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   sender     User                  @relation(fields: [senderId], references: [id])
+  replyTo    ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies    ChatRoomMessage[]     @relation("MessageReplies")
   votes      ChatRoomMessageVote[]
 }
 

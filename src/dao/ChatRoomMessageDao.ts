@@ -53,16 +53,27 @@ async getMessageCountByUser(senderId: number): Promise<number> {
     senderId: number,
     content: string,
     imageUrl?: string,
+    replyToId?: number,
   ) {
     return prisma.chatRoomMessage.create({
       data: {
         chatRoomId,
         senderId,
         content,
-         imageUrl: imageUrl ?? null,
+        imageUrl: imageUrl ?? null,
+        isReply: replyToId != null,
+        replyToId: replyToId ?? null,
       },
       include: {
         sender: { select: { displayId: true } },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            deleted: true,
+            sender: { select: { displayId: true } },
+          },
+        },
       },
     });
   }
@@ -86,6 +97,14 @@ async getMessageCountByUser(senderId: number): Promise<number> {
       take: count,
       include: {
         sender: { select: { displayId: true, deleted: true } },
+        replyTo: {
+          select: {
+            id: true,
+            content: true,
+            deleted: true,
+            sender: { select: { displayId: true } },
+          },
+        },
       },
     });
   }
