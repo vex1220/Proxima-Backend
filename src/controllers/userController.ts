@@ -6,11 +6,8 @@ import {
   setUserDeleted,
   setUserDisplayId,
   userNameInUse,
-  suspendUser,
-  unsuspendUser,
-  getSuspendedUsers,
 } from "../services/userService";
-import { updateUserProximityRadius } from "../dao/userServiceDao";
+import { updateUserProximityRadius, updateUserFeedRadius } from "../dao/userServiceDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
@@ -89,7 +86,7 @@ export async function userDetails(req: Request, res: Response) {
       message: "user details retrieved",
       isAdmin: user.isAdmin,
       isEmailVerified: user.isVerified,
-      suspendedUntil: (user as any).suspendedUntil ?? null,
+      feedRadius: user.preferences?.feedRadius ?? 3219,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
@@ -148,79 +145,35 @@ export async function changeUserProximityRadius(req: Request, res: Response) {
 }
 }
 
+// ── Feed radius (how far out the feed searches for locations) ─────────────────
+const FEED_RADIUS_MIN_M = 1609;   // 1 mile
+const FEED_RADIUS_MAX_M = 80_467; // 50 miles
 
-// =============================================================================
-// ADMIN — SUSPENSION
-// =============================================================================
-
-/**
- * POST /user/admin/suspend
- * Body: { displayId: string, durationMinutes: number }
- * Suspends a user for the given number of minutes.
- */
-export async function suspendUserHandler(req: Request, res: Response) {
+export async function changeUserFeedRadius(req: Request, res: Response) {
   try {
-    const { displayId, durationMinutes } = req.body;
+    const { newFeedRadius } = req.body;
+    const user = req.user;
 
-    if (!displayId || typeof displayId !== "string") {
-      return res.status(400).json({ message: "displayId is required" });
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
     }
-    if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
-      return res.status(400).json({ message: "durationMinutes must be a positive number" });
+    if (typeof newFeedRadius !== "number" || !Number.isFinite(newFeedRadius)) {
+      return res.status(400).json({ message: "feedRadius must be a number" });
     }
-
-    const target = await getUserByDisplayId(displayId);
-    if (!target) {
-      return res.status(404).json({ message: "User not found" });
+    if (newFeedRadius < FEED_RADIUS_MIN_M) {
+      return res.status(400).json({ message: `Minimum feed radius is ${FEED_RADIUS_MIN_M}m (1 mile)` });
     }
-    if (target.isAdmin) {
-      return res.status(403).json({ message: "Cannot suspend an admin" });
+    if (newFeedRadius > FEED_RADIUS_MAX_M) {
+      return res.status(400).json({ message: `Maximum feed radius is ${FEED_RADIUS_MAX_M}m (50 miles)` });
     }
 
-    const updated = await suspendUser(target.id, durationMinutes);
+    await updateUserFeedRadius(user.id, newFeedRadius);
+
     return res.status(200).json({
-      message: `${displayId} has been suspended`,
-      suspendedUntil: (updated as any).suspendedUntil,
+      feedRadius: newFeedRadius,
+      message: `Feed radius updated to ${newFeedRadius}m`,
     });
   } catch (error: any) {
-    return res.status(500).json({ message: error.message });
-  }
-}
-
-/**
- * POST /user/admin/unsuspend
- * Body: { displayId: string }
- * Immediately lifts a user's suspension.
- */
-export async function unsuspendUserHandler(req: Request, res: Response) {
-  try {
-    const { displayId } = req.body;
-
-    if (!displayId || typeof displayId !== "string") {
-      return res.status(400).json({ message: "displayId is required" });
-    }
-
-    const target = await getUserByDisplayId(displayId);
-    if (!target) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    await unsuspendUser(target.id);
-    return res.status(200).json({ message: `${displayId} has been unsuspended` });
-  } catch (error: any) {
-    return res.status(500).json({ message: error.message });
-  }
-}
-
-/**
- * GET /user/admin/suspended
- * Returns all currently-suspended users.
- */
-export async function getSuspendedUsersHandler(_req: Request, res: Response) {
-  try {
-    const users = await getSuspendedUsers();
-    return res.status(200).json({ suspendedUsers: users });
-  } catch (error: any) {
-    return res.status(500).json({ message: error.message });
+    return res.status(400).json({ message: error.message });
   }
 }

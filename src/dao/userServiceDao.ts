@@ -52,6 +52,13 @@ export async function updateUserProximityRadius(id: number, radius: number) {
   });
 }
 
+export async function updateUserFeedRadius(id: number, radius: number) {
+  return await prisma.user_Settings.update({
+    where: { userId: id },
+    data: { feedRadius: radius },
+  });
+}
+
 export async function updateUserKarmaDao(id: number, karmaChange: number) {
   return await prisma.user.update({
     where: { id },
@@ -67,38 +74,5 @@ export async function setUserVerifiedDao(id: number) {
   return await prisma.user.update({
     where: { id },
     data: { isVerified: true },
-  });
-}
-
-// ─── Suspension ───────────────────────────────────────────────────────────────
-
-export async function suspendUserDao(id: number, until: Date) {
-  return prisma.user.update({
-    where: { id },
-    data: { suspendedUntil: until },
-  });
-}
-
-export async function unsuspendUserDao(id: number) {
-  return prisma.user.update({
-    where: { id },
-    data: { suspendedUntil: null },
-  });
-}
-
-/** Returns all users whose suspendedUntil is in the future */
-export async function getSuspendedUsersDao() {
-  return prisma.user.findMany({
-    where: {
-      suspendedUntil: { gt: new Date() },
-      deleted: false,
-    },
-    select: {
-      id: true,
-      displayId: true,
-      email: true,
-      suspendedUntil: true,
-    },
-    orderBy: { suspendedUntil: "asc" },
   });
 }

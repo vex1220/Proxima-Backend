@@ -23,9 +23,13 @@ export class PostCommentDao{
 
     async getPostCommentsByPost(postId: number){
         return prisma.postComment.findMany({
-            where: {postId,deleted: false},
+            where: {
+                postId,
+                deleted: false,
+                commenter: { deleted: false },
+            },
             orderBy:{createdAt: "desc"},
-            include: {commenter: {select: {displayId: true,id : true}}}
+            include: {commenter: {select: {displayId: true, id: true}}}
         });
     }
 

@@ -77,7 +77,11 @@ async getMessageCountByUser(senderId: number): Promise<number> {
 
   async getLatestChatRoomMessagesByChatRoom(chatRoomId: number, count: number) {
     return prisma.chatRoomMessage.findMany({
-      where: { chatRoomId },
+      where: {
+        chatRoomId,
+        deleted: false,
+        sender: { deleted: false }, // exclude messages from deleted accounts
+      },
       orderBy: { createdAt: "desc" },
       take: count,
       include: {

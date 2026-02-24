@@ -34,7 +34,11 @@ export class PostDao{
 
 async getPostsByLocation(locationId: number) {
   return prisma.post.findMany({
-    where: { locationId, deleted: false },
+    where: {
+      locationId,
+      deleted: false,
+      poster: { deleted: false },
+    },
     select: { id: true, title: true, content: true, imageUrl: true, posterId: true, locationId: true, createdAt: true },
     orderBy: { createdAt: "desc" },
   });
@@ -47,7 +51,11 @@ async getPostsByLocation(locationId: number) {
     async getPostsByLocationIds(locationIds: number[]) {
         if (locationIds.length === 0) return [];
         return prisma.post.findMany({
-            where: { locationId: { in: locationIds }, deleted: false },
+            where: {
+                locationId: { in: locationIds },
+                deleted: false,
+                poster: { deleted: false },
+            },
             select: {
                 id: true,
                 title: true,
