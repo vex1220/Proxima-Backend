@@ -10,9 +10,8 @@ const router = express.Router();
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-/** All images are stored at this resolution — 16:9, max 1280px wide */
-const TARGET_WIDTH  = 1280;
-const TARGET_HEIGHT = 720;  // exactly 16:9
+/** Images are scaled down to fit within this width — aspect ratio is preserved */
+const TARGET_WIDTH = 1280;
 
 // ── Rate limiter ─────────────────────────────────────────────────────────────
 
@@ -56,13 +55,12 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ error: "No image provided" });
 
-      // Resize + centre-crop to exactly 16:9 (1280x720).
-      // `cover` fills the target box and crops any overflow — the image is
-      // never stretched or letter-boxed, just trimmed to fit.
+      // Scale down to TARGET_WIDTH if wider, otherwise keep original dimensions.
+      // `inside` preserves aspect ratio — no cropping, no distortion.
       const processed = await sharp(req.file.buffer)
-        .resize(TARGET_WIDTH, TARGET_HEIGHT, {
-          fit:      "cover",
-          position: "centre",
+        .resize(TARGET_WIDTH, undefined, {
+          fit: "inside",
+          withoutEnlargement: true,
         })
         .jpeg({ quality: 85, progressive: true })
         .toBuffer();
