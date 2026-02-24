@@ -1,4 +1,3 @@
-
 import { ChatRoom, Location, LocationType, Post } from "@prisma/client";
 import { LocationDao } from "../dao/LocationDao";
 import { listChatRooms } from "./chatRoomService";
@@ -67,9 +66,11 @@ export class LocationService {
   const postsWithVotes = locationPosts.map((post, idx) => ({
     id: post.id,
     posterId: post.posterId,
-    title: post.title,         // fix typo
-    content: post.content,     // add missing field
-    createdAt: post.createdAt, // added missing field
+    title: post.title,
+    content: post.content,
+    createdAt: post.createdAt,
+    imageUrl: post.imageUrl ?? null,
+
     voteCount: voteCounts[idx]
     }));
 
