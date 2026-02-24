@@ -12,6 +12,7 @@ import {
   voteOnPost,
   deletePostVote,
   deleteCommentVote,
+  deletePost,
 } from "../controllers/postController";
 
 const router = Router();
@@ -29,5 +30,8 @@ router.delete("/vote/comment/:id", deleteCommentVote);
 
 router.post("/vote/:postId", voteOnPost);
 router.delete("/vote/:postId", deletePostVote);
+
+// Must come after /vote routes to avoid catching them
+router.delete("/:postId", requireNotSuspended, deletePost);
 
 export default router;

@@ -295,3 +295,28 @@ export const deleteCommentVote = withAuth(async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 });
+
+// =============================================================================
+// DELETE POST
+// =============================================================================
+
+export const deletePost = withAuth(async (req, res) => {
+  try {
+    const postId = Number(req.params.postId);
+    const user = req.user;
+
+    const post = await postService.getPostById(postId);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (post.posterId !== user.id && !user.isAdmin) {
+      return res.status(403).json({ message: "Not authorized to delete this post" });
+    }
+
+    await postService.deletePost(postId);
+    return res.status(200).json({ message: "Post deleted successfully" });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+});
