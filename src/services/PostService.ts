@@ -69,11 +69,9 @@ export class PostService {
   async getFeedPosts(locationIds: number[], viewerUserId: number) {
     const rawPosts = await postDao.getPostsByLocationIds(locationIds);
 
-    // Filter out the viewer's own posts and blocked users
+    // Filter out blocked users only (viewer can see their own posts)
     const blockedIds = new Set(await getAllBlockRelatedUserIdsDao(viewerUserId));
-    const visible = rawPosts.filter(
-      (p) => p.posterId !== viewerUserId && !blockedIds.has(p.posterId)
-    );
+    const visible = rawPosts.filter((p) => !blockedIds.has(p.posterId));
 
     if (visible.length === 0) return [];
 
