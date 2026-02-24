@@ -76,3 +76,34 @@ export async function setUserVerifiedDao(id: number) {
     data: { isVerified: true },
   });
 }
+
+// ─── Suspension ───────────────────────────────────────────────────────────────
+
+export async function suspendUserDao(id: number, until: Date) {
+  return prisma.user.update({
+    where: { id },
+    data: { suspendedUntil: until },
+  });
+}
+
+export async function unsuspendUserDao(id: number) {
+  return prisma.user.update({
+    where: { id },
+    data: { suspendedUntil: null },
+  });
+}
+
+export async function getSuspendedUsersDao() {
+  return prisma.user.findMany({
+    where: {
+      suspendedUntil: { gt: new Date() },
+      deleted: false,
+    },
+    select: {
+      id: true,
+      displayId: true,
+      email: true,
+      suspendedUntil: true,
+    },
+  });
+}

@@ -17,6 +17,7 @@ model User {
   password                String
   deleted                 Boolean               @default(false)
   isVerified              Boolean               @default(false)
+  suspendedUntil          DateTime?
   ChatRoomMessages        ChatRoomMessage[]
   ProximityMessages       ProximityMessage[]
   ChatRoomMessageVotes    ChatRoomMessageVote[]
