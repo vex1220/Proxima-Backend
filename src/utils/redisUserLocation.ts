@@ -75,28 +75,37 @@ export async function filterMutuallyNearbyUsers(
     [userId: number]: { socketId: string; proximityRadius: number };
   },
 ) {
-  const mutuallyNearby: number[] = [];
+  if (nearbyUserIds.length === 0) return [];
+
+  // Batch all GEOPOS lookups in a single Redis pipeline instead of N sequential calls
+  const pipeline = redis.pipeline();
   for (const id of nearbyUserIds) {
-    const nearbyUserLocation = await getUserLocation(String(id));
+    pipeline.geopos(USER_LOCATIONS_KEY, String(id));
+  }
+  const results = await pipeline.exec();
+
+  const mutuallyNearby: number[] = [];
+  for (let i = 0; i < nearbyUserIds.length; i++) {
+    const id = nearbyUserIds[i];
+    const [err, pos] = results![i] as [Error | null, [string, string][] | null];
+    if (err || !pos || !pos[0]) continue;
+
+    const nearbyUserLocation = {
+      latitude: Number(pos[0][1]),
+      longitude: Number(pos[0][0]),
+    };
     const nearbyUserRadius = userSocketMap[id]?.proximityRadius ?? 1600;
-    if (!nearbyUserLocation) continue;
 
     const distance = getDistance(
-      {
-        latitude: nearbyUserLocation.latitude,
-        longitude: nearbyUserLocation.longitude,
-      },
-      {
-        latitude: currentUserLocation.latitude,
-        longitude: currentUserLocation.longitude,
-      },
+      { latitude: nearbyUserLocation.latitude, longitude: nearbyUserLocation.longitude },
+      { latitude: currentUserLocation.latitude, longitude: currentUserLocation.longitude },
     );
 
     if (distance <= nearbyUserRadius) {
       mutuallyNearby.push(id);
     }
   }
-  // Map user IDs to socket IDs and filter out any undefined
+
   return mutuallyNearby
     .map((id) => userSocketMap[id]?.socketId)
     .filter(Boolean);

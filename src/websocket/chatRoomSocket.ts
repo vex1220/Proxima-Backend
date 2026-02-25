@@ -8,7 +8,7 @@ import { getAndVerifyMessage, verifyChatRoomAndUserInRange } from "../utils/chat
 import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
-import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
@@ -132,7 +132,7 @@ export function setupChatRoomSocket(
       }
 
       // Get all user IDs with a block relationship with the sender
-      const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
 
       // Deliver individually, skipping blocked users
       const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));

@@ -9,7 +9,7 @@ import {
 import { VoteService } from "./VoteService";
 import { LocationDao } from "../dao/LocationDao";
 import { VoteModel } from "../models/voteTypes";
-import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 
 const chatRoomMessageService = new ChatRoomMessageService();
 const voteService = new VoteService(VoteModel.ChatRoomMessageVote);
@@ -51,7 +51,7 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
   const messages = await chatRoomMessageService.getLatestChatRoomMessagesByChatRoom(chatRoomId, 50);
 
   // Get all user IDs with a block relationship with the viewer — filter their messages out
-  const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(userId));
+  const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(userId));
 
   const visibleMessages = messages.filter(
     (message) => !blockedUserIds.has(message.senderId)

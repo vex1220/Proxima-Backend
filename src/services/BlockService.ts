@@ -6,6 +6,7 @@ import {
   getBlockerUserIdsDao,
   getAllBlockRelatedUserIdsDao,
   getBlockListDao,
+  invalidateCachedBlockList,
 } from "../dao/BlockDao";
 
 export class BlockService {
@@ -17,7 +18,13 @@ export class BlockService {
     if (alreadyBlocked) {
       throw new Error("User is already blocked");
     }
-    return blockUserDao(blockerId, blockedId);
+    const result = await blockUserDao(blockerId, blockedId);
+    // Invalidate cache for both users — their visible user sets just changed
+    await Promise.all([
+      invalidateCachedBlockList(blockerId),
+      invalidateCachedBlockList(blockedId),
+    ]);
+    return result;
   }
 
   async unblockUser(blockerId: number, blockedId: number) {
@@ -25,7 +32,12 @@ export class BlockService {
     if (!isBlocked) {
       throw new Error("User is not blocked");
     }
-    return unblockUserDao(blockerId, blockedId);
+    const result = await unblockUserDao(blockerId, blockedId);
+    await Promise.all([
+      invalidateCachedBlockList(blockerId),
+      invalidateCachedBlockList(blockedId),
+    ]);
+    return result;
   }
 
   async isBlocked(blockerId: number, blockedId: number) {

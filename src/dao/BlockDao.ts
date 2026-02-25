@@ -1,4 +1,30 @@
 import { prisma } from "../utils/prisma";
+import redis from "../utils/setupRedis";
+
+const BLOCK_CACHE_TTL = 60; // seconds
+
+function blockCacheKey(userId: number) {
+  return `cache:blocks:${userId}`;
+}
+
+/**
+ * Cached version of getAllBlockRelatedUserIdsDao.
+ * Returns from Redis cache if available (TTL: 60s), otherwise hits DB and caches the result.
+ * Call invalidateCachedBlockList() whenever a user blocks or unblocks someone.
+ */
+export async function getCachedBlockRelatedUserIds(userId: number): Promise<number[]> {
+  const key = blockCacheKey(userId);
+  const cached = await redis.get(key);
+  if (cached) return JSON.parse(cached) as number[];
+
+  const ids = await getAllBlockRelatedUserIdsDao(userId);
+  await redis.setex(key, BLOCK_CACHE_TTL, JSON.stringify(ids));
+  return ids;
+}
+
+export async function invalidateCachedBlockList(userId: number) {
+  await redis.del(blockCacheKey(userId));
+}
 
 export async function blockUserDao(blockerId: number, blockedId: number) {
   return prisma.userBlock.create({

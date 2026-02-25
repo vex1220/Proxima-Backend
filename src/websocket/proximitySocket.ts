@@ -9,7 +9,7 @@ import {
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
-import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
@@ -34,7 +34,7 @@ export function setupProximitySocket(
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
       // Filter out blocked users before counting nearby users
-      const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
       const visibleNearbyUserIds = nearbyUserIds.filter(
         (id) => id !== user.id && !blockedUserIds.has(id)
       );
@@ -59,7 +59,7 @@ export function setupProximitySocket(
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
       // Filter out blocked users from typing indicators too
-      const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
       const visibleNearbyUserIds = nearbyUserIds.filter(
         (id) => id !== user.id && !blockedUserIds.has(id)
       );
@@ -137,7 +137,7 @@ export function setupProximitySocket(
         }
 
         // Filter out blocked users before determining who to broadcast to
-        const blockedUserIds = new Set(await getAllBlockRelatedUserIdsDao(user.id));
+        const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
         const visibleNearbyUsers = nearbyUsers.filter(
           (id) => !blockedUserIds.has(id)
         );
