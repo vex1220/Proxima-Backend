@@ -114,7 +114,13 @@ export async function moderateContent(
       };
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as {
+     results?: Array<{
+    flagged: boolean;
+    categories: Record<string, boolean>;
+    category_scores: Record<string, number>;
+     }>;
+    };
 
     // ── Parse the response ─────────────────────────────────────────────
     // The API returns { results: [{ flagged, categories, category_scores }] }
