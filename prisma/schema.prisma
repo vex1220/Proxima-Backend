@@ -24,12 +24,17 @@ model User {
   PostVotes               PostVote[]
   PostCommentMessageVotes PostCommentVote[]
 
+  lastActiveAt            DateTime              @default(now())
+
   preferences      User_Settings?
   FeedbackMessages FeedbackMessage[]
   posts            Post[]
   blocksGiven      UserBlock[] @relation("BlocksMade")
   blocksReceived   UserBlock[] @relation("BlocksReceived")
   postComments     PostComment[]
+  pushTokens       PushToken[]
+  notifications    Notification[]
+  sentLogs         NotificationSentLog[]
 }
 
 model User_Settings {
@@ -281,4 +286,54 @@ model ModerationLog {
   @@index([contentType, contentId])
   @@index([userId])
   @@index([flagged])
+}
+
+// ─── Push Notifications ─────────────────────────────────────────────────────
+// Stores Expo push tokens so the server can send native push notifications.
+// One user can have multiple tokens (multiple devices).
+
+model PushToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  token     String   @unique
+  platform  String   @default("unknown")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ─── In-App Notifications ───────────────────────────────────────────────────
+// Every notification (push + in-app) gets logged here so users can see a
+// notification history screen and we can track read/unread state.
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String   // e.g. "NEW_COMMENT", "KARMA_MILESTONE", "INACTIVE_REMINDER"
+  title     String
+  body      String
+  data      Json?    // optional payload (postId, etc.) for deep-linking
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+// ─── Notification Deduplication ─────────────────────────────────────────────
+// Prevents the same notification from being sent twice. Each "ruleKey" is a
+// unique string like "karma_milestone:post:42:15" so we only congratulate a
+// user once per milestone per post.
+
+model NotificationSentLog {
+  id      Int      @id @default(autoincrement())
+  ruleKey String
+  userId  Int
+  sentAt  DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([ruleKey, userId])
 }

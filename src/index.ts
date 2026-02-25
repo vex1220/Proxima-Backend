@@ -19,6 +19,8 @@ import feedRoutes from "./routes/feed";
 import uploadRouter from "./routes/upload";
 import reportRoutes from "./routes/report";
 import moderationRoutes from "./routes/moderation";
+import notificationRoutes from "./routes/notification";
+import { startNotificationScheduler } from "./notifications";
 
 dotenv.config();
 
@@ -67,6 +69,7 @@ app.use("/api/post", postRoutes);
 app.use("/api/feed", feedRoutes);
 app.use("/api/report", reportRoutes);
 app.use("/api/moderation", moderationRoutes);
+app.use("/api/notification", notificationRoutes);
 app.use("/upload", uploadRouter);
 
 app.get("/", (_req, res) => {
@@ -106,6 +109,11 @@ if (process.env.OPENAI_API_KEY) {
       "Content will be saved but not checked."
   );
 }
+
+// ── Notification Scheduler ───────────────────────────────────────────────────
+// Starts the background scheduler that checks for inactive users and sends
+// reminder push notifications. Runs in the same process — no extra service.
+startNotificationScheduler();
 
 if (require.main === module) {
   httpServer.listen(PORT, () => {

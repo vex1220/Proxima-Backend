@@ -7,6 +7,7 @@ import {
   verifyOneTimeCode,
 } from "../services/authService";
 import { getUserByEmail } from "../services/userService";
+import { touchUserActivity } from "../notifications";
 
 export async function register(req: Request, res: Response) {
   try {
@@ -34,6 +35,9 @@ export async function login(req: Request, res: Response) {
     }
 
     const response = await loginUser(email, password);
+
+    // Track login time for inactive-user notifications
+    if (user) touchUserActivity(user.id).catch(() => {});
 
     return res.status(200).json({
       message: "User Logged in Successfully",

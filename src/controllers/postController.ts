@@ -9,6 +9,7 @@ import { validateNotOwnPost, constructVote } from "../utils/voteUtils";
 import { updateUserKarma } from "../services/userService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { enqueueModerationJob } from "../moderation";
+import { emitNotificationAsync, NotificationEvent } from "../notifications";
 
 
 const postService = new PostService();
@@ -166,6 +167,16 @@ export const commentOnPost = withAuth(async (req, res) => {
 
     const updatedPost = await postService.getPostandPostCommentsById(post.id, user.id);
 
+    // ── Notify post owner about the new comment ──────────────────────
+    emitNotificationAsync({
+      event: NotificationEvent.COMMENT_CREATED,
+      actorId: user.id,
+      postId: post.id,
+      postTitle: post.title,
+      postOwnerId: post.posterId,
+      commentId: createdComment.id,
+    });
+
     return res.status(201).json({
       message: "Post comment added",
       createdComment,
@@ -211,6 +222,18 @@ export const voteOnPost = withAuth(async (req, res) => {
     if (karmaDelta !== 0) {
       await updateUserKarma(post.posterId, karmaDelta);
     }
+
+    // ── Check for karma milestone notification ───────────────────────
+    // We need the current vote count to see if we crossed a threshold.
+    const currentVoteCount = await postVoteService.getVoteCount(postId);
+    emitNotificationAsync({
+      event: NotificationEvent.POST_VOTED,
+      actorId: user.id,
+      postId: postId,
+      postTitle: post.title,
+      postOwnerId: post.posterId,
+      voteCount: currentVoteCount,
+    });
 
     return res.status(201).json({ message: "voted successfully" });
   } catch (error: any) {
