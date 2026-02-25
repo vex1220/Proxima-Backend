@@ -81,4 +81,24 @@ export class VoteDao {
 
     return result._sum.value ?? 0;
   }
+
+  /**
+   * Get vote counts for multiple targets in one query.
+   * Returns a map of targetId → vote count sum.
+   */
+  async getVoteCountsBatch(targetIds: number[]): Promise<Record<number, number>> {
+    if (targetIds.length === 0) return {};
+
+    const results = await this.model.groupBy({
+      by: ["targetId"],
+      where: { targetId: { in: targetIds } },
+      _sum: { value: true },
+    });
+
+    const map: Record<number, number> = {};
+    for (const r of results) {
+      map[r.targetId] = r._sum.value ?? 0;
+    }
+    return map;
+  }
 }

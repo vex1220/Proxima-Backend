@@ -38,4 +38,8 @@ export class VoteService {
   async getVoteCount(targetId: number) {
     return await this.dao.getVoteCount(targetId);
   }
+
+  async getVoteCountsBatch(targetIds: number[]): Promise<Record<number, number>> {
+    return await this.dao.getVoteCountsBatch(targetIds);
+  }
 }

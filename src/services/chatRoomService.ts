@@ -57,23 +57,19 @@ export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
     (message) => !blockedUserIds.has(message.senderId)
   );
 
-  const voteCounts = await Promise.all(
-    visibleMessages.map((message) => voteService.getVoteCount(message.id))
-  );
+  const messageIds = visibleMessages.map((m) => m.id);
 
-  const userVotes = await Promise.all(
-    visibleMessages.map((message) =>
-      voteService
-        .getVote({ value: 0, userId, targetId: message.id })
-        .catch(() => null)
-    )
-  );
+  // Two queries total instead of 2×N — fetch all vote data in batch
+  const [voteCountMap, userVoteMap] = await Promise.all([
+    voteService.getVoteCountsBatch(messageIds),
+    voteService.getUserVotesForTargets(userId, messageIds),
+  ]);
 
-  return visibleMessages.map((message: any, idx: number) => ({
+  return visibleMessages.map((message: any) => ({
     ...message,
     isOwnMessage: message.senderId === userId,
-    voteCount: voteCounts[idx],
-    userVote: userVotes[idx]?.value ?? null,
+    voteCount: voteCountMap[message.id] ?? 0,
+    userVote: userVoteMap[message.id] ?? null,
     replyTo: message.replyTo
       ? {
           id: message.replyTo.id,
