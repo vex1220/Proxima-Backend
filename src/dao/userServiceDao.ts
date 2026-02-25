@@ -5,15 +5,17 @@ export async function createUserDao(
   displayId: string,
   password: string,
 ) {
-  const createdUser = await prisma.user.create({
-    data: { email, displayId, password },
-  });
+  return await prisma.$transaction(async (tx) => {
+    const createdUser = await tx.user.create({
+      data: { email, displayId, password },
+    });
 
-  const createUserSettings = await prisma.user_Settings.create({
-    data: { userId: createdUser.id },
-  });
+    await tx.user_Settings.create({
+      data: { userId: createdUser.id },
+    });
 
-  return createdUser;
+    return createdUser;
+  });
 }
 
 export async function setUserDeletedDao(id: number) {

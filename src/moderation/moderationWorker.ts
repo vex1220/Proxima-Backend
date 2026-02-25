@@ -137,7 +137,7 @@ async function handleApproval(job: ModerationJob): Promise<void> {
 // REJECTION HANDLER — The "Ghost Delete"
 // =============================================================================
 // When OpenAI says the content is toxic:
-//   1. Flip deleted=true AND moderationStatus=REJECTED in the database
+//   1. Flip deleted=true AND moderationStatus=REJECTED in a single DB write
 //   2. Emit a real-time WebSocket event so the content vanishes from all
 //      connected clients instantly
 //
@@ -145,9 +145,8 @@ async function handleApproval(job: ModerationJob): Promise<void> {
 // existing code already does) will automatically exclude this content.
 
 async function handleRejection(job: ModerationJob): Promise<void> {
-  // ── 1. Update the database ───────────────────────────────────────────
-  await updateModerationStatus(job.contentType, job.contentId, "REJECTED");
-  await softDeleteContent(job.contentType, job.contentId);
+  // ── 1. Update the database (single atomic write) ─────────────────────
+  await rejectContent(job.contentType, job.contentId);
 
   // ── 2. Emit real-time "ghost delete" via WebSocket ───────────────────
   // This makes the content disappear from everyone's screen RIGHT NOW,
@@ -162,8 +161,35 @@ async function handleRejection(job: ModerationJob): Promise<void> {
 // =============================================================================
 
 /**
+ * Atomically set deleted=true AND moderationStatus=REJECTED in one update.
+ * Replaces the previous two-step updateModerationStatus + softDeleteContent
+ * pattern to prevent a crash leaving content in a half-rejected state.
+ */
+async function rejectContent(
+  contentType: ModeratableContentType,
+  contentId: number
+): Promise<void> {
+  const data = { deleted: true, moderationStatus: "REJECTED" as const };
+
+  switch (contentType) {
+    case "POST":
+      await prisma.post.update({ where: { id: contentId }, data });
+      break;
+    case "POST_COMMENT":
+      await prisma.postComment.update({ where: { id: contentId }, data });
+      break;
+    case "CHAT_MESSAGE":
+      await prisma.chatRoomMessage.update({ where: { id: contentId }, data });
+      break;
+    case "PROXIMITY_MESSAGE":
+      await prisma.proximityMessage.update({ where: { id: contentId }, data });
+      break;
+  }
+}
+
+/**
  * Update the moderationStatus field on the correct table.
- * Uses a switch on contentType to call the right Prisma model.
+ * Used for approvals only — rejections go through rejectContent() above.
  */
 async function updateModerationStatus(
   contentType: ModeratableContentType,
@@ -172,71 +198,16 @@ async function updateModerationStatus(
 ): Promise<void> {
   switch (contentType) {
     case "POST":
-      await prisma.post.update({
-        where: { id: contentId },
-        data: { moderationStatus: status },
-      });
+      await prisma.post.update({ where: { id: contentId }, data: { moderationStatus: status } });
       break;
-
     case "POST_COMMENT":
-      await prisma.postComment.update({
-        where: { id: contentId },
-        data: { moderationStatus: status },
-      });
+      await prisma.postComment.update({ where: { id: contentId }, data: { moderationStatus: status } });
       break;
-
     case "CHAT_MESSAGE":
-      await prisma.chatRoomMessage.update({
-        where: { id: contentId },
-        data: { moderationStatus: status },
-      });
+      await prisma.chatRoomMessage.update({ where: { id: contentId }, data: { moderationStatus: status } });
       break;
-
     case "PROXIMITY_MESSAGE":
-      await prisma.proximityMessage.update({
-        where: { id: contentId },
-        data: { moderationStatus: status },
-      });
-      break;
-  }
-}
-
-/**
- * Soft-delete the content by setting deleted=true.
- * Your existing queries already filter `deleted: false`, so this
- * automatically hides the content from all future reads.
- */
-async function softDeleteContent(
-  contentType: ModeratableContentType,
-  contentId: number
-): Promise<void> {
-  switch (contentType) {
-    case "POST":
-      await prisma.post.update({
-        where: { id: contentId },
-        data: { deleted: true },
-      });
-      break;
-
-    case "POST_COMMENT":
-      await prisma.postComment.update({
-        where: { id: contentId },
-        data: { deleted: true },
-      });
-      break;
-
-    case "CHAT_MESSAGE":
-      await prisma.chatRoomMessage.update({
-        where: { id: contentId },
-        data: { deleted: true },
-      });
-      break;
-
-    case "PROXIMITY_MESSAGE":
-      await prisma.proximityMessage.update({
-        where: { id: contentId },
-        data: { deleted: true },
-      });
+      await prisma.proximityMessage.update({ where: { id: contentId }, data: { moderationStatus: status } });
       break;
   }
 }
