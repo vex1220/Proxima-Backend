@@ -18,10 +18,87 @@ export async function createUserDao(
   });
 }
 
+/**
+ * Soft-delete a user AND all of their content in a single atomic transaction.
+ *
+ * What gets marked deleted:
+ *  - The User record itself
+ *  - All Posts they created
+ *  - All PostComments they wrote
+ *  - All ChatRoomMessages they sent
+ *  - All ProximityMessages they sent
+ *
+ * What gets hard-deleted (cleanup - no longer needed):
+ *  - Their votes (PostVote, PostCommentVote, ChatRoomMessageVote)
+ *  - Their push tokens
+ *  - Their notifications + sent logs
+ *  - Their blocks (given and received)
+ *  - Their user settings
+ *
+ * Returns the updated user plus counts of affected rows for logging.
+ */
 export async function setUserDeletedDao(id: number) {
-  return prisma.user.update({
-    where: { id },
-    data: { deleted: true },
+  return prisma.$transaction(async (tx) => {
+    // ── 1. Soft-delete all user-generated content ────────────────────────
+
+    const [posts, comments, chatMessages, proximityMessages] =
+      await Promise.all([
+        tx.post.updateMany({
+          where: { posterId: id, deleted: false },
+          data: { deleted: true },
+        }),
+        tx.postComment.updateMany({
+          where: { commenterId: id, deleted: false },
+          data: { deleted: true },
+        }),
+        tx.chatRoomMessage.updateMany({
+          where: { senderId: id, deleted: false },
+          data: { deleted: true },
+        }),
+        tx.proximityMessage.updateMany({
+          where: { senderId: id, deleted: false },
+          data: { deleted: true },
+        }),
+      ]);
+
+    // ── 2. Hard-delete ephemeral / relational data ───────────────────────
+
+    await Promise.all([
+      tx.postVote.deleteMany({ where: { userId: id } }),
+      tx.postCommentVote.deleteMany({ where: { userId: id } }),
+      tx.chatRoomMessageVote.deleteMany({ where: { userId: id } }),
+      tx.pushToken.deleteMany({ where: { userId: id } }),
+      tx.notification.deleteMany({ where: { userId: id } }),
+      tx.notificationSentLog.deleteMany({ where: { userId: id } }),
+      tx.userBlock.deleteMany({
+        where: { OR: [{ blockerId: id }, { blockedId: id }] },
+      }),
+      tx.user_Settings.deleteMany({ where: { userId: id } }),
+    ]);
+
+    // ── 3. Mark the user record as deleted ───────────────────────────────
+
+    const deletedUser = await tx.user.update({
+      where: { id },
+      data: {
+        deleted: true,
+        // Scrub PII so the email can't be linked back to the person
+        email: `deleted_${id}_${Date.now()}@removed.local`,
+        password: "ACCOUNT_DELETED",
+        displayId: `deleted_user_${id}`,
+        karma: 0,
+      },
+    });
+
+    return {
+      user: deletedUser,
+      deletedCounts: {
+        posts: posts.count,
+        comments: comments.count,
+        chatMessages: chatMessages.count,
+        proximityMessages: proximityMessages.count,
+      },
+    };
   });
 }
 

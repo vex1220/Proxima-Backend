@@ -33,11 +33,12 @@ export async function deleteUser(req: Request, res: Response) {
       return res.status(403).json({ message: "action not Authorized" });
     }
 
-    const deletedUser = await setUserDeleted(userToDelete);
+    const result = await setUserDeleted(userToDelete);
 
-    return res.status(201).json({
+    return res.status(200).json({
       message: `user ${userToDelete.displayId} has been deleted`,
-      deletedUser,
+      deletedUser: result.user,
+      deletedCounts: result.deletedCounts,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
