@@ -8,6 +8,7 @@ import { VoteService } from "../services/VoteService";
 import { validateNotOwnPost, constructVote } from "../utils/voteUtils";
 import { updateUserKarma } from "../services/userService";
 import { validateImageUrl } from "../utils/validateImageUrl";
+import { enqueueModerationJob } from "../moderation";
 
 
 const postService = new PostService();
@@ -54,6 +55,21 @@ export const createPost = withAuth(async (req, res) => {
       title,
       content,
       imageUrl,
+    });
+
+    // ── Enqueue for AI moderation (runs in background) ────────────────
+    // The post is already saved and will be returned below (optimistic).
+    // We combine title + content for moderation since both are user input.
+    enqueueModerationJob({
+      contentType: "POST",
+      contentId: createdPost.id,
+      userId: user.id,
+      text: [title, content].filter(Boolean).join("\n"),
+      imageUrl: createdPost.imageUrl ?? undefined,
+      socketMeta: {
+        type: "POST",
+        locationId,
+      },
     });
 
     const postList = await postService.getPostListByLocation(locationId, user.id);
@@ -132,6 +148,20 @@ export const commentOnPost = withAuth(async (req, res) => {
       postId: post.id,
       content,
       imageUrl,
+    });
+
+    // ── Enqueue for AI moderation (runs in background) ────────────────
+    // The comment is already saved and will be returned below (optimistic).
+    enqueueModerationJob({
+      contentType: "POST_COMMENT",
+      contentId: createdComment.id,
+      userId: user.id,
+      text: content,
+      imageUrl: createdComment.imageUrl ?? undefined,
+      socketMeta: {
+        type: "POST_COMMENT",
+        postId: post.id,
+      },
     });
 
     const updatedPost = await postService.getPostandPostCommentsById(post.id, user.id);

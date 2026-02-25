@@ -11,6 +11,7 @@ import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
+import { enqueueModerationJob } from "../moderation";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -151,6 +152,23 @@ export function setupProximitySocket(
         } else if (typeof usersToBroadCastTo === "string") {
           io.to(usersToBroadCastTo).emit("receiveProximityMessage", messageToSend);
         }
+
+        // ── Enqueue for AI moderation (runs in background) ────────────
+        // The proximity message was already delivered above (optimistic).
+        // The worker will call OpenAI and "ghost delete" if flagged.
+        enqueueModerationJob({
+          contentType: "PROXIMITY_MESSAGE",
+          contentId: message.id,
+          userId: user.id,
+          text: content,
+          imageUrl: message.imageUrl ?? undefined,
+          socketMeta: {
+            type: "PROXIMITY_MESSAGE",
+            latitude,
+            longitude,
+            senderRadius: user.preferences?.proximityRadius ?? 500,
+          },
+        });
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
         socket.emit("error", "An unexpected error has occurred");

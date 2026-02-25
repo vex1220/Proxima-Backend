@@ -40,6 +40,17 @@ model User_Settings {
   user            User? @relation(fields: [userId], references: [id])
 }
 
+// ─── Moderation ──────────────────────────────────────────────────────────────
+// Tracks the AI moderation lifecycle for every piece of user-generated content.
+// PENDING  → just created, waiting for the background worker to check it.
+// APPROVED → the OpenAI moderation API said it's safe.
+// REJECTED → the AI flagged it; the content has been "ghost deleted."
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum LocationType {
   NONE
   CAMPUS
@@ -67,33 +78,35 @@ model Location {
 }
 
 model Post {
-  id         Int           @id @default(autoincrement())
-  createdAt  DateTime      @default(now())
-  title      String
-  content    String?
-  imageUrl   String?
-  posterId   Int
-  locationId Int
-  deleted    Boolean       @default(false)
-  location   Location      @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  poster     User          @relation(fields: [posterId], references: [id])
-  comments   PostComment[]
-  votes      PostVote[]
+  id               Int              @id @default(autoincrement())
+  createdAt        DateTime         @default(now())
+  title            String
+  content          String?
+  imageUrl         String?
+  posterId         Int
+  locationId       Int
+  deleted          Boolean          @default(false)
+  moderationStatus ModerationStatus @default(PENDING) // ← NEW: tracks AI moderation state
+  location         Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  poster           User             @relation(fields: [posterId], references: [id])
+  comments         PostComment[]
+  votes            PostVote[]
 
   @@index(locationId)
 }
 
 model PostComment {
-  id          Int               @id @default(autoincrement())
-  createdAt   DateTime          @default(now())
-  content     String?
-  imageUrl   String?
-  postId      Int
-  commenterId Int
-  deleted     Boolean           @default(false)
-  post        Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commenter   User              @relation(fields: [commenterId], references: [id])
-  votes       PostCommentVote[]
+  id               Int               @id @default(autoincrement())
+  createdAt        DateTime          @default(now())
+  content          String?
+  imageUrl         String?
+  postId           Int
+  commenterId      Int
+  deleted          Boolean           @default(false)
+  moderationStatus ModerationStatus  @default(PENDING) // ← NEW: tracks AI moderation state
+  post             Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commenter        User              @relation(fields: [commenterId], references: [id])
+  votes            PostCommentVote[]
 
   @@index(postId)
 }
@@ -135,20 +148,21 @@ model ChatRoom {
 }
 
 model ChatRoomMessage {
-  id         Int                   @id @default(autoincrement())
-  createdAt  DateTime              @default(now())
-  content    String
-  imageUrl   String?
-  chatRoomId Int
-  senderId   Int
-  isReply    Boolean               @default(false)
-  replyToId  Int?
-  deleted    Boolean               @default(false)
-  chatRoom   ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  sender     User                  @relation(fields: [senderId], references: [id])
-  replyTo    ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
-  replies    ChatRoomMessage[]     @relation("MessageReplies")
-  votes      ChatRoomMessageVote[]
+  id               Int                   @id @default(autoincrement())
+  createdAt        DateTime              @default(now())
+  content          String
+  imageUrl         String?
+  chatRoomId       Int
+  senderId         Int
+  isReply          Boolean               @default(false)
+  replyToId        Int?
+  deleted          Boolean               @default(false)
+  moderationStatus ModerationStatus      @default(PENDING) // ← NEW: tracks AI moderation state
+  chatRoom         ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  sender           User                  @relation(fields: [senderId], references: [id])
+  replyTo          ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies          ChatRoomMessage[]     @relation("MessageReplies")
+  votes            ChatRoomMessageVote[]
 }
 
 model ChatRoomMessageVote {
@@ -164,15 +178,16 @@ model ChatRoomMessageVote {
 }
 
 model ProximityMessage {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-  content   String
-  imageUrl   String?
-  senderId  Int
-  deleted   Boolean  @default(false)
-  latitude  Float
-  longitude Float
-  sender    User     @relation(fields: [senderId], references: [id])
+  id               Int              @id @default(autoincrement())
+  createdAt        DateTime         @default(now())
+  content          String
+  imageUrl         String?
+  senderId         Int
+  deleted          Boolean          @default(false)
+  moderationStatus ModerationStatus @default(PENDING) // ← NEW: tracks AI moderation state
+  latitude         Float
+  longitude        Float
+  sender           User             @relation(fields: [senderId], references: [id])
 }
 
 enum FeedbackCategory {
@@ -247,4 +262,23 @@ model Report {
   @@index([contentType, contentId])
   @@index([reportedUserId])
   @@index([resolved])
+}
+
+// ─── Moderation Audit Log ────────────────────────────────────────────────────
+// Every time the AI moderation worker processes a piece of content, it writes a
+// row here. This gives you a full audit trail — useful for debugging false
+// positives, analytics dashboards, and compliance.
+model ModerationLog {
+  id          Int         @id @default(autoincrement())
+  contentType ContentType // POST, POST_COMMENT, CHAT_MESSAGE, PROXIMITY_MESSAGE
+  contentId   Int         // The ID of the content that was checked
+  userId      Int         // The user who created the content
+  flagged     Boolean     // true = OpenAI said it's toxic
+  categories  Json?       // Raw OpenAI category flags  (e.g. { "hate": true, "violence": false })
+  scores      Json?       // Raw OpenAI category scores (e.g. { "hate": 0.93, "violence": 0.01 })
+  processedAt DateTime    @default(now())
+
+  @@index([contentType, contentId])
+  @@index([userId])
+  @@index([flagged])
 }

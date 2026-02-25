@@ -9,6 +9,7 @@ import chatRoomRoutes from "./routes/chatRoom";
 import locationRoutes from "./routes/location";
 import userRoutes from "./routes/user";
 import { setupSocket } from "./websocket/setupSocket";
+import { startModerationWorker } from "./moderation";
 import helmet from "helmet";
 import logger from "./utils/logger";
 import rateLimit from "express-rate-limit";
@@ -17,6 +18,7 @@ import postRoutes from "./routes/post";
 import feedRoutes from "./routes/feed";
 import uploadRouter from "./routes/upload";
 import reportRoutes from "./routes/report";
+import moderationRoutes from "./routes/moderation";
 
 dotenv.config();
 
@@ -64,6 +66,7 @@ app.use("/api/location", locationRoutes);
 app.use("/api/post", postRoutes);
 app.use("/api/feed", feedRoutes);
 app.use("/api/report", reportRoutes);
+app.use("/api/moderation", moderationRoutes);
 app.use("/upload", uploadRouter);
 
 app.get("/", (_req, res) => {
@@ -90,6 +93,19 @@ const io = new Server(httpServer, {
   },
 });
 setupSocket(io);
+
+// ── Moderation Worker ─────────────────────────────────────────────────────────
+// Start the background moderation worker. It receives the Socket.io server
+// so it can emit real-time "ghost delete" events when toxic content is detected.
+// The worker runs inside this same Node.js process — no separate service needed.
+if (process.env.OPENAI_API_KEY) {
+  startModerationWorker(io);
+} else {
+  console.warn(
+    "[Moderation] OPENAI_API_KEY not set — moderation worker is DISABLED. " +
+      "Content will be saved but not checked."
+  );
+}
 
 if (require.main === module) {
   httpServer.listen(PORT, () => {

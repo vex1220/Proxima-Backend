@@ -10,6 +10,7 @@ import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
+import { enqueueModerationJob } from "../moderation";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -139,6 +140,21 @@ export function setupChatRoomSocket(
           io.to(socketId).emit("receiveMessage", messageToSend);
         }
       }
+
+      // ── Enqueue for AI moderation (runs in background) ──────────────
+      // The message is already delivered above (optimistic display).
+      // The worker will call OpenAI and "ghost delete" if flagged.
+      enqueueModerationJob({
+        contentType: "CHAT_MESSAGE",
+        contentId: message.id,
+        userId: user.id,
+        text: content,
+        imageUrl: message.imageUrl ?? undefined,
+        socketMeta: {
+          type: "CHAT_MESSAGE",
+          chatRoomId: chatRoom.id,
+        },
+      });
     } catch (error: any) {
       socket.emit("error", error.message || "An unexpected error has occurred");
     }
