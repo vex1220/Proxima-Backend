@@ -15,6 +15,7 @@ const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 export class PostService {
   async createPost(data: CreatePostInput) {
     const { content, title } = validatePost(data.content, data.title, data.imageUrl);
+
     if (!title) {
       throw new Error("A title is required");
     }

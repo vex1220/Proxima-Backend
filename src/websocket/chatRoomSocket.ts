@@ -79,6 +79,11 @@ export function setupChatRoomSocket(
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
+      if (!content || content.length > 2000){
+        socket.emit("error", "Message too long");
+        return 
+      }
+
       // Block suspended users from sending messages
       if (await isUserSuspended(user as any)) {
         const until = (user as any).suspendedUntil as Date;
