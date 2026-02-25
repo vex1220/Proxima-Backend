@@ -111,10 +111,11 @@ async function sendToExpo(messages: ExpoPushMessage[]): Promise<void> {
       return;
     }
 
-    const result = await response.json();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const result: any = await response.json();
 
     // Check for individual ticket errors (e.g. invalid token)
-    if (result.data) {
+    if (result?.data) {
       for (const ticket of result.data) {
         if (ticket.status === "error") {
           logger.warn(`[Push] Ticket error: ${ticket.message}`);
