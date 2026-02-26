@@ -30,6 +30,41 @@ export async function listLocations(req: Request, res: Response) {
   }
 }
 
+/**
+ * GET /location/in-range
+ * Returns every location whose own boundary (loc.size) contains the user's
+ * current GPS position — i.e. locations the user can actually post in.
+ * This is different from the feed radius, which is a user preference.
+ */
+export async function getLocationsInRange(req: Request, res: Response) {
+  try {
+    const user = req.user as any;
+    const { getUserLocation } = await import("../utils/redisUserLocation");
+    const { getDistance } = await import("geolib");
+
+    const userPos = await getUserLocation(String(user.id));
+    if (!userPos) {
+      return res.status(200).json({ locations: [] });
+    }
+
+    const allLocations = await locationService.listLocations();
+
+    const inRange = allLocations
+      .filter((loc: any) =>
+        loc.latitude != null && loc.longitude != null && loc.size != null &&
+        getDistance(
+          { latitude: userPos.latitude, longitude: userPos.longitude },
+          { latitude: Number(loc.latitude), longitude: Number(loc.longitude) },
+        ) <= loc.size
+      )
+      .map((loc: any) => ({ id: loc.id, name: loc.name }));
+
+    return res.status(200).json({ locations: inRange });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+}
+
 export async function locationDetails(req: Request, res: Response) {
   try {
     const locationId = Number(req.params.locationId);
