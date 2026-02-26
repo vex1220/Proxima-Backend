@@ -4,6 +4,7 @@ export type CreatePostInput = {
     title: string,
     content: string,
     imageUrl?: string,
+    wasAnonymous?: boolean,
 };
 
 export type createPostCommentInput = {
@@ -11,4 +12,5 @@ export type createPostCommentInput = {
     postId: number,
     content:string,
     imageUrl?: string,
+    wasAnonymous?: boolean,
 };

@@ -115,6 +115,8 @@ export function setupChatRoomSocket(
 
       // Run DB write and block-list lookup in parallel — they're independent
       // and this cuts the block-cache latency off the critical path.
+      const wasAnonymous = user.preferences?.anonymousMode ?? true;
+
       const [message, blockedUserIds] = await Promise.all([
         chatRoomMessageService.createChatRoomMessage(
           chatRoom.id,
@@ -122,6 +124,7 @@ export function setupChatRoomSocket(
           content,
           imageUrl,
           replyToId ?? undefined,
+          wasAnonymous,
         ),
         getCachedBlockRelatedUserIds(user.id).then((ids) => new Set(ids)),
       ]);
@@ -131,7 +134,7 @@ export function setupChatRoomSocket(
         chatRoomId: chatRoom.id,
         content: message.content,
         imageUrl: message.imageUrl,
-        senderDisplayId: message.sender.displayId,
+        senderDisplayId: wasAnonymous ? "Anonymous" : message.sender.displayId,
         timestamp: message.createdAt,
         messageId: message.id,
         userId: user.id,

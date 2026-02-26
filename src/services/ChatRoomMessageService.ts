@@ -31,8 +31,8 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
     content: string,
     imageUrl?: string,
     replyToId?: number,
+    wasAnonymous?: boolean,
   ) {
-    // If replying, verify the parent message exists and belongs to this chatroom
     if (replyToId != null) {
       const parentMessage = await chatRoomMessageDao.getMessageById(replyToId);
       if (!parentMessage) {
@@ -52,6 +52,7 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
       content,
       imageUrl,
       replyToId,
+      wasAnonymous,
     );
   }
 
@@ -79,6 +80,8 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
         ...msg.sender,
         displayId: msg.sender.deleted
           ? "User no Longer exists"
+          : msg.wasAnonymous
+          ? "Anonymous"
           : msg.sender.displayId,
       },
       replyTo: msg.replyTo
@@ -88,7 +91,11 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
               ? "Message Has Been Deleted"
               : msg.replyTo.content,
             imageUrl: msg.replyTo.deleted ? null : msg.replyTo.imageUrl,
-            sender: msg.replyTo.sender,
+            sender: {
+              displayId: msg.replyTo.wasAnonymous
+                ? "Anonymous"
+                : msg.replyTo.sender.displayId,
+            },
           }
         : null,
     }));

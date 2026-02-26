@@ -25,6 +25,7 @@ export class PostService {
       content: content ?? "",
       imageUrl: data.imageUrl,
       title,
+      wasAnonymous: data.wasAnonymous ?? false,
     });
   }
 
@@ -126,7 +127,7 @@ export class PostService {
       content:         p.content ?? "",
       imageUrl:        p.imageUrl ?? null,
       posterId:        p.posterId,
-      posterDisplayId: p.poster.displayId,
+      posterDisplayId: p.wasAnonymous ? "Anonymous" : p.poster.displayId,
       locationId:      p.locationId,
       locationName:    p.location.name,
       createdAt:       p.createdAt,
@@ -177,18 +178,26 @@ export class PostService {
       userVote: userCommentVotes[comment.id] ?? null,
     }));
 
+    const commentsWithAnonymousMasking = commentsWithVotes.map((c) => ({
+      ...c,
+      commenter: {
+        ...c.commenter,
+        displayId: (c as any).wasAnonymous ? "Anonymous" : c.commenter.displayId,
+      },
+    }));
+
     return {
       id: post.id,
       title: post.title,
       content: post.content,
       imageUrl: post.imageUrl,
       posterId: post.posterId,
-      posterDisplayId: post.poster.displayId,
+      posterDisplayId: (post as any).wasAnonymous ? "Anonymous" : post.poster.displayId,
       postVotes: postVotes,
       userPostVote: userPostVote,
       createdAt: post.createdAt,
       commentCount: comments.length,
-      comments: commentsWithVotes,
+      comments: commentsWithAnonymousMasking,
     };
   }
 }

@@ -29,7 +29,16 @@ export class PostCommentDao{
                 commenter: { deleted: false },
             },
             orderBy:{createdAt: "desc"},
-            include: {commenter: {select: {displayId: true, id: true}}}
+            select: {
+                id: true,
+                content: true,
+                imageUrl: true,
+                postId: true,
+                commenterId: true,
+                createdAt: true,
+                wasAnonymous: true,
+                commenter: { select: { displayId: true, id: true } },
+            },
         });
     }
 

@@ -35,14 +35,16 @@ model User {
   pushTokens       PushToken[]
   notifications    Notification[]
   sentLogs         NotificationSentLog[]
+  mutedLocations   MutedLocation[]
 }
 
 model User_Settings {
-  id              Int   @id @default(autoincrement())
-  userId          Int   @unique
-  proximityRadius Int   @default(1600)
-  feedRadius      Int   @default(3219)  // 2 miles in metres
-  user            User? @relation(fields: [userId], references: [id])
+  id              Int     @id @default(autoincrement())
+  userId          Int     @unique
+  proximityRadius Int     @default(1600)
+  feedRadius      Int     @default(3219)  // 2 miles in metres
+  anonymousMode   Boolean @default(true)
+  user            User?   @relation(fields: [userId], references: [id])
 }
 
 // ─── Moderation ──────────────────────────────────────────────────────────────
@@ -77,11 +79,25 @@ model Location {
   type      LocationType @default(NONE)
   chatRooms ChatRoom[]
   posts     Post[]
+  mutedBy   MutedLocation[]
 
   @@index([latitude, longitude])
   @@index([type])
   @@index([deleted])
   @@index([name, deleted])
+}
+
+model MutedLocation {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  locationId Int
+  locationName String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId])
+  @@index([userId])
 }
 
 model Post {
@@ -93,7 +109,8 @@ model Post {
   posterId         Int
   locationId       Int
   deleted          Boolean          @default(false)
-  moderationStatus ModerationStatus @default(PENDING) // ← NEW: tracks AI moderation state
+  wasAnonymous     Boolean          @default(false)
+  moderationStatus ModerationStatus @default(PENDING)
   location         Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
   poster           User             @relation(fields: [posterId], references: [id])
   comments         PostComment[]
@@ -110,7 +127,8 @@ model PostComment {
   postId           Int
   commenterId      Int
   deleted          Boolean           @default(false)
-  moderationStatus ModerationStatus  @default(PENDING) // ← NEW: tracks AI moderation state
+  wasAnonymous     Boolean           @default(false)
+  moderationStatus ModerationStatus  @default(PENDING)
   post             Post              @relation(fields: [postId], references: [id], onDelete: Cascade)
   commenter        User              @relation(fields: [commenterId], references: [id])
   votes            PostCommentVote[]
@@ -164,7 +182,8 @@ model ChatRoomMessage {
   isReply          Boolean               @default(false)
   replyToId        Int?
   deleted          Boolean               @default(false)
-  moderationStatus ModerationStatus      @default(PENDING) // ← NEW: tracks AI moderation state
+  wasAnonymous     Boolean               @default(false)
+  moderationStatus ModerationStatus      @default(PENDING)
   chatRoom         ChatRoom              @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   sender           User                  @relation(fields: [senderId], references: [id])
   replyTo          ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)

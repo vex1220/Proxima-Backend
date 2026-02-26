@@ -11,6 +11,10 @@ import {
   userStatistics,
   getUserPosts,
   getUserComments,
+  toggleAnonymousMode,
+  muteLocation,
+  unmuteLocation,
+  getMutedLocations,
 } from "../controllers/userController";
 import { blockUser, unblockUser, getBlockList } from "../controllers/blockController";
 
@@ -47,5 +51,13 @@ router.get("/comments", getUserComments);
 router.post("/block", blockUser);
 router.post("/unblock", unblockUser);
 router.get("/blocks", getBlockList);
+
+// Anonymous mode
+router.post("/anonymousMode", toggleAnonymousMode);
+
+// Muted locations
+router.post("/muteLocation", muteLocation);
+router.post("/unmuteLocation", unmuteLocation);
+router.get("/mutedLocations", getMutedLocations);
 
 export default router;

@@ -172,6 +172,13 @@ export async function unsuspendUserDao(id: number) {
   });
 }
 
+export async function setAnonymousModeDao(userId: number, enabled: boolean) {
+  return prisma.user_Settings.update({
+    where: { userId },
+    data: { anonymousMode: enabled },
+  });
+}
+
 export async function getSuspendedUsersDao() {
   return prisma.user.findMany({
     where: {

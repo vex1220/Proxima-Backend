@@ -7,7 +7,8 @@ import {
   setUserDisplayId,
   userNameInUse,
 } from "../services/userService";
-import { updateUserProximityRadius, updateUserFeedRadius } from "../dao/userServiceDao";
+import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao } from "../dao/userServiceDao";
+import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { PostDao } from "../dao/PostDao";
 import { PostCommentService } from "../services/PostCommentService";
@@ -85,6 +86,7 @@ export async function userDetails(req: Request, res: Response) {
     }
 
     return res.status(200).json({
+      id: user.id,
       username: user.displayId,
       email: user.email,
       created: user.createdAt,
@@ -92,6 +94,7 @@ export async function userDetails(req: Request, res: Response) {
       isAdmin: user.isAdmin,
       isEmailVerified: user.isVerified,
       feedRadius: user.preferences?.feedRadius ?? 3219,
+      anonymousMode: user.preferences?.anonymousMode ?? true,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
@@ -214,6 +217,78 @@ export async function getUserComments(req: Request, res: Response) {
 
     const comments = await postCommentService.getPostCommentsByUser(user.id);
     return res.status(200).json({ comments });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+// =============================================================================
+// ANONYMOUS MODE
+// =============================================================================
+
+export async function toggleAnonymousMode(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+    const { enabled } = req.body;
+    if (typeof enabled !== "boolean") {
+      return res.status(400).json({ message: "enabled must be a boolean" });
+    }
+    await setAnonymousModeDao(user.id, enabled);
+    return res.status(200).json({ anonymousMode: enabled });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+// =============================================================================
+// MUTED LOCATIONS
+// =============================================================================
+
+export async function muteLocation(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+    const { locationId, locationName } = req.body;
+    if (!locationId || typeof locationId !== "number") {
+      return res.status(400).json({ message: "locationId must be a number" });
+    }
+    await muteLocationDao(user.id, locationId, locationName ?? "");
+    return res.status(200).json({ message: "Location muted" });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function unmuteLocation(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+    const { locationId } = req.body;
+    if (!locationId || typeof locationId !== "number") {
+      return res.status(400).json({ message: "locationId must be a number" });
+    }
+    await unmuteLocationDao(user.id, locationId);
+    return res.status(200).json({ message: "Location unmuted" });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function getMutedLocations(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+    const locations = await getMutedLocationsDao(user.id);
+    return res.status(200).json({ locations });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

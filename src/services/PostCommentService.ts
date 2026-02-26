@@ -16,6 +16,7 @@ export class PostCommentService {
       postId: data.postId,
       content: content ?? "",
       imageUrl: data.imageUrl,
+      wasAnonymous: data.wasAnonymous ?? false,
     });
   }
 

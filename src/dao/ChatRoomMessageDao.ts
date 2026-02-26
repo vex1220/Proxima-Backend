@@ -54,6 +54,7 @@ async getMessageCountByUser(senderId: number): Promise<number> {
     content: string,
     imageUrl?: string,
     replyToId?: number,
+    wasAnonymous?: boolean,
   ) {
     return prisma.chatRoomMessage.create({
       data: {
@@ -63,6 +64,7 @@ async getMessageCountByUser(senderId: number): Promise<number> {
         imageUrl: imageUrl ?? null,
         isReply: replyToId != null,
         replyToId: replyToId ?? null,
+        wasAnonymous: wasAnonymous ?? false,
       },
       include: {
         sender: { select: { displayId: true } },
@@ -92,11 +94,22 @@ async getMessageCountByUser(senderId: number): Promise<number> {
       where: {
         chatRoomId,
         deleted: false,
-        sender: { deleted: false }, // exclude messages from deleted accounts
+        sender: { deleted: false },
       },
       orderBy: { createdAt: "desc" },
       take: count,
-      include: {
+      select: {
+        id: true,
+        createdAt: true,
+        content: true,
+        imageUrl: true,
+        chatRoomId: true,
+        senderId: true,
+        isReply: true,
+        replyToId: true,
+        deleted: true,
+        wasAnonymous: true,
+        moderationStatus: true,
         sender: { select: { displayId: true, deleted: true } },
         replyTo: {
           select: {
@@ -104,6 +117,7 @@ async getMessageCountByUser(senderId: number): Promise<number> {
             content: true,
             deleted: true,
             imageUrl: true,
+            wasAnonymous: true,
             sender: { select: { displayId: true } },
           },
         },

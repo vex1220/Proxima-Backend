@@ -18,7 +18,7 @@ export class PostDao{
     async getPostById(id:number){
         return prisma.post.findUnique({
             where: {id},
-            include: {poster: {select: {displayId: true , id: true}}}
+            include: {poster: {select: {displayId: true , id: true}}},
         });
     }
 
@@ -77,6 +77,7 @@ async getPostsByLocation(locationId: number) {
                 posterId: true,
                 locationId: true,
                 createdAt: true,
+                wasAnonymous: true,
                 poster:   { select: { displayId: true } },
                 location: { select: { name: true } },
                 _count:   { select: { comments: { where: { deleted: false } } } },

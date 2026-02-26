@@ -56,6 +56,7 @@ export const createPost = withAuth(async (req, res) => {
       title,
       content,
       imageUrl,
+      wasAnonymous: user.preferences?.anonymousMode ?? true,
     });
 
     // ── Enqueue for AI moderation (runs in background) ────────────────
@@ -149,6 +150,7 @@ export const commentOnPost = withAuth(async (req, res) => {
       postId: post.id,
       content,
       imageUrl,
+      wasAnonymous: user.preferences?.anonymousMode ?? true,
     });
 
     // ── Enqueue for AI moderation (runs in background) ────────────────

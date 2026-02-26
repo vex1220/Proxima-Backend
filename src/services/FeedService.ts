@@ -2,6 +2,7 @@ import { getDistance } from "geolib";
 import { getUserLocation } from "../utils/redisUserLocation";
 import { LocationDao } from "../dao/LocationDao";
 import { PostService } from "./PostService";
+import { getMutedLocationIdsDao } from "../dao/MutedLocationDao";
 import { prisma } from "../utils/prisma";
 import redis from "../utils/setupRedis";
 
@@ -27,8 +28,8 @@ export type FeedResult = {
 
 export class FeedService {
   async getFeedForUser(userId: number): Promise<FeedResult> {
-    // ── 1–3. Fetch user position, preferences, and locations in parallel ───
-    const [userPos, prefs, allLocations] = await Promise.all([
+    // ── 1–3. Fetch user position, preferences, locations, and muted IDs in parallel
+    const [userPos, prefs, allLocations, mutedIds] = await Promise.all([
       getUserLocation(String(userId)),
       prisma.user_Settings.findUnique({ where: { userId } }),
       redis.get(LOCATIONS_CACHE_KEY).then(async (cached) => {
@@ -37,6 +38,7 @@ export class FeedService {
         await redis.setex(LOCATIONS_CACHE_KEY, LOCATIONS_CACHE_TTL, JSON.stringify(locations));
         return locations;
       }),
+      getMutedLocationIdsDao(userId),
     ]);
 
     if (!userPos) {
@@ -46,9 +48,6 @@ export class FeedService {
     const feedRadius = prefs?.feedRadius ?? DEFAULT_FEED_RADIUS_M;
 
     // ── 4. Filter: location centre must be within user's feed radius ─────────
-    // A location qualifies if its centre is within `feedRadius` metres of the
-    // user — regardless of whether the user is physically inside the location's
-    // own boundary (loc.size). This lets users discover nearby hotspots.
     const inRange: InRangeLocation[] = [];
     for (const loc of allLocations) {
       if (loc.latitude == null || loc.longitude == null) continue;
@@ -63,10 +62,13 @@ export class FeedService {
       }
     }
 
-    // ── 5. Posts + result ───────────────────────────────────────────────────
-    const locationIds = inRange.map((l) => l.id);
+    // ── 5. Filter out muted locations ─────────────────────────────────────────
+    const visibleLocations = inRange.filter((l) => !mutedIds.has(l.id));
+
+    // ── 6. Posts + result ───────────────────────────────────────────────────
+    const locationIds = visibleLocations.map((l) => l.id);
     const posts = await postService.getFeedPosts(locationIds, userId);
 
-    return { posts, inRangeLocations: inRange };
+    return { posts, inRangeLocations: visibleLocations };
   }
 }
