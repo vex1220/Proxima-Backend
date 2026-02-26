@@ -4,7 +4,7 @@ import { getLastFiftyMessages } from "../services/chatRoomService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { updateUserKarma } from "../services/userService";
 import { VoteService } from "../services/VoteService";
-import { getAndVerifyMessage, verifyChatRoomAndUserInRange } from "../utils/chatRoomSocketUtils";
+import { getAndVerifyMessage, verifyChatRoomAndUserInRange, getCachedChatRoomWithLocation } from "../utils/chatRoomSocketUtils";
 import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
@@ -26,9 +26,17 @@ export function setupChatRoomSocket(
   user: User,
   userSocketMap: { [userId: number]: { socketId: string; proximityRadius: number } },
 ) {
+  // Track rooms where this socket has already passed range verification.
+  // Once a user successfully joins a room, we skip the full
+  // verifyChatRoomAndUserInRange check on subsequent actions (send, vote,
+  // delete) and just use the cached chatroom data. This avoids redundant
+  // Redis + DB lookups on every single message send.
+  const verifiedRooms = new Set<number>();
+
   socket.on("joinRoom", async (roomId: number) => {
     try {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+      verifiedRooms.add(roomId);
 
       socket.join(String(roomId));
 
@@ -51,6 +59,8 @@ export function setupChatRoomSocket(
   socket.on("leaveRoom", () => {
     socket.rooms.forEach((roomId) => {
       if (roomId !== socket.id) {
+        const numericId = Number(roomId);
+        if (!isNaN(numericId)) verifiedRooms.delete(numericId);
         const userCount = getUserCount(io, roomId) - 1;
         io.to(roomId).emit("userLeft", {
           userCount,
@@ -90,7 +100,18 @@ export function setupChatRoomSocket(
         return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
       }
 
-      const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+      // Fast path: if user already passed range check when joining, skip the
+      // full verifyChatRoomAndUserInRange (which does Redis + DB lookups).
+      // Just grab the cached chatroom data instead.
+      let chatRoom;
+      if (verifiedRooms.has(roomId)) {
+        const cached = await getCachedChatRoomWithLocation(roomId);
+        chatRoom = cached?.chatRoom;
+        if (!chatRoom) throw new Error("Chat room not found");
+      } else {
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        verifiedRooms.add(roomId);
+      }
 
       const message = await chatRoomMessageService.createChatRoomMessage(
         chatRoom.id,
@@ -167,7 +188,16 @@ export function setupChatRoomSocket(
 
   socket.on("deleteMessage", async ({ roomId, messageId }) => {
     try {
-      const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+      // Fast path: skip full range re-verification if already verified
+      let chatRoom;
+      if (verifiedRooms.has(roomId)) {
+        const cached = await getCachedChatRoomWithLocation(roomId);
+        chatRoom = cached?.chatRoom;
+        if (!chatRoom) throw new Error("Chat room not found");
+      } else {
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        verifiedRooms.add(roomId);
+      }
       const message = await getAndVerifyMessage(messageId);
 
       if (user.id !== message.senderId && !user.isAdmin) {
@@ -184,7 +214,16 @@ export function setupChatRoomSocket(
 
   socket.on("voteMessage", async ({ roomId, messageId, value }) => {
     try {
-      const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+      // Fast path: skip full range re-verification if already verified
+      let chatRoom;
+      if (verifiedRooms.has(roomId)) {
+        const cached = await getCachedChatRoomWithLocation(roomId);
+        chatRoom = cached?.chatRoom;
+        if (!chatRoom) throw new Error("Chat room not found");
+      } else {
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        verifiedRooms.add(roomId);
+      }
       const message = await getAndVerifyMessage(messageId);
 
       validateNotOwnPost(user.id, message.senderId);

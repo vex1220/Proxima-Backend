@@ -67,6 +67,42 @@ export class PostService {
     return postsWithVotes;
   }
 
+  /**
+   * Batched version of getPostListByLocation — fetches ALL vote counts in a
+   * single groupBy query instead of N individual aggregate queries.
+   *
+   * Why this matters: the original method runs `getVoteCount(post.id)` inside
+   * a `Promise.all(map(...))`, which fires one SQL aggregate per post (N+1
+   * pattern). For 20 posts that's 20 round-trips. This version uses
+   * `getVoteCountsBatch()` to do it in one query. The difference scales
+   * linearly with the number of posts — 100 posts = 100× slower vs 1 query.
+   */
+  async getPostListByLocationBatched(locationId: number, viewerUserId?: number) {
+    const posts = await postDao.getPostsByLocation(locationId);
+
+    const blockedUserIds = viewerUserId
+      ? new Set(await getAllBlockRelatedUserIdsDao(viewerUserId))
+      : new Set<number>();
+
+    const visiblePosts = posts.filter((post) => !blockedUserIds.has(post.posterId));
+
+    if (visiblePosts.length === 0) return [];
+
+    // ONE query for ALL vote counts instead of N individual queries
+    const postIds = visiblePosts.map((p) => p.id);
+    const voteCountMap = await postVoteService.getVoteCountsBatch(postIds);
+
+    return visiblePosts.map((post) => ({
+      id: post.id,
+      posterId: post.posterId,
+      title: post.title,
+      content: post.content,
+      createdAt: post.createdAt,
+      imageUrl: post.imageUrl ?? null,
+      voteCount: voteCountMap[post.id] ?? 0,
+    }));
+  }
+
   async getFeedPosts(locationIds: number[], viewerUserId: number) {
     const rawPosts = await postDao.getPostsByLocationIds(locationIds);
 
@@ -76,16 +112,15 @@ export class PostService {
 
     if (visible.length === 0) return [];
 
-    // Batch-fetch user votes in a single query
+    // Batch-fetch user votes AND vote counts in parallel — 2 queries total
+    // instead of N+1 individual aggregates
     const postIds = visible.map((p) => p.id);
-    const userVoteMap = await postVoteService.getUserVotesForTargets(viewerUserId, postIds);
+    const [voteCountMap, userVoteMap] = await Promise.all([
+      postVoteService.getVoteCountsBatch(postIds),
+      postVoteService.getUserVotesForTargets(viewerUserId, postIds),
+    ]);
 
-    // Batch-fetch vote counts (aggregate per post)
-    const voteCounts = await Promise.all(
-      visible.map((p) => postVoteService.getVoteCount(p.id))
-    );
-
-    return visible.map((p, idx) => ({
+    return visible.map((p) => ({
       id:              p.id,
       title:           p.title,
       content:         p.content ?? "",
@@ -95,7 +130,7 @@ export class PostService {
       locationId:      p.locationId,
       locationName:    p.location.name,
       createdAt:       p.createdAt,
-      voteCount:       voteCounts[idx],
+      voteCount:       voteCountMap[p.id] ?? 0,
       userVote:        userVoteMap[p.id] ?? null,
       commentCount:    p._count.comments,
     }));
@@ -126,9 +161,9 @@ export class PostService {
       (comment) => !blockedUserIds.has(comment.commenterId)
     );
 
-    const commentVotes = await Promise.all(
-      comments.map((comment) => postCommentVoteService.getVoteCount(comment.id))
-    );
+    const commentVotes = comments.length > 0
+      ? await postCommentVoteService.getVoteCountsBatch(comments.map((c) => c.id))
+      : {} as Record<number, number>;
 
     let userCommentVotes: Record<number, number> = {};
     if (userId && comments.length > 0) {
@@ -136,9 +171,9 @@ export class PostService {
       userCommentVotes = await postCommentVoteService.getUserVotesForTargets(userId, commentIds);
     }
 
-    const commentsWithVotes = comments.map((comment, idx) => ({
+    const commentsWithVotes = comments.map((comment) => ({
       ...comment,
-      voteCount: commentVotes[idx],
+      voteCount: commentVotes[comment.id] ?? 0,
       userVote: userCommentVotes[comment.id] ?? null,
     }));
 

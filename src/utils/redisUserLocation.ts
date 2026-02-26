@@ -136,14 +136,31 @@ export async function getNearbyUsersCount(
     radius,
   );
 
-  // Step 2: keep only users who also have ME within THEIR radius (mutual)
+  // Filter out self and disconnected users early
+  const candidates = nearbyUserIds.filter(
+    (id) => id !== userId && userSocketMap[id] != null,
+  );
+  if (candidates.length === 0) return 0;
+
+  // Step 2: batch all GEOPOS lookups in a single pipeline instead of N
+  // sequential `getUserLocation` calls. Same pattern used in
+  // filterMutuallyNearbyUsers — keeps Redis round-trips constant at 1.
+  const pipeline = redis.pipeline();
+  for (const id of candidates) {
+    pipeline.geopos(USER_LOCATIONS_KEY, String(id));
+  }
+  const results = await pipeline.exec();
+
   let mutualCount = 0;
-  for (const id of nearbyUserIds) {
-    if (id === userId) continue;
+  for (let i = 0; i < candidates.length; i++) {
+    const id = candidates[i];
+    const [err, pos] = results![i] as [Error | null, [string, string][] | null];
+    if (err || !pos || !pos[0]) continue;
 
-    const otherLocation = await getUserLocation(String(id));
-    if (!otherLocation) continue;
-
+    const otherLocation = {
+      latitude: Number(pos[0][1]),
+      longitude: Number(pos[0][0]),
+    };
     const otherRadius = userSocketMap[id]?.proximityRadius ?? 1600;
 
     const distance = getDistance(

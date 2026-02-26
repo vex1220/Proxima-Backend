@@ -4,12 +4,9 @@ import { listChatRooms } from "./chatRoomService";
 import {prisma} from "../utils/prisma";
 import { createRoomDao } from "../dao/chatRoomDao";
 import { PostService } from "./PostService";
-import { VoteService } from "./VoteService";
-import { VoteModel } from "../models/voteTypes";
 
 const locationDao = new LocationDao();
 const postService = new PostService();
-const voteService = new VoteService(VoteModel.PostVote);
 
 export class LocationService {
   async createLocation(
@@ -52,27 +49,22 @@ export class LocationService {
     return location
   }
 
-  async getLocationDetails(id: number) {
+  /**
+   * Returns full location details including chatrooms and posts.
+   *
+   * Performance notes:
+   * - Chatrooms and posts are fetched in PARALLEL (Promise.all)
+   * - Post vote counts use a single batch query via getPostListByLocationBatched
+   * - viewerUserId enables block filtering on posts
+   */
+  async getLocationDetails(id: number, viewerUserId?: number) {
     const location = await this.getLocationById(id);
 
-    const locationChatRooms = await listChatRooms(location.id);
-    const locationPosts = await postService.getPostListByLocation(id);
-
-    const voteCounts = await Promise.all (
-    locationPosts.map((post) =>
-      voteService.getVoteCount(post.id)
-  ));
-
-  const postsWithVotes = locationPosts.map((post, idx) => ({
-    id: post.id,
-    posterId: post.posterId,
-    title: post.title,
-    content: post.content,
-    createdAt: post.createdAt,
-    imageUrl: post.imageUrl ?? null,
-
-    voteCount: voteCounts[idx]
-    }));
+    // Parallel fetch: chatrooms and posts at the same time
+    const [locationChatRooms, locationPosts] = await Promise.all([
+      listChatRooms(location.id),
+      postService.getPostListByLocationBatched(id, viewerUserId),
+    ]);
 
     return {
         id: location.id,
@@ -82,7 +74,7 @@ export class LocationService {
         size: location.size,
         type: location.type,
         chatRooms: locationChatRooms,
-        locationPosts: postsWithVotes,
+        locationPosts,
     }
   }
 

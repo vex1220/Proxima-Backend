@@ -37,8 +37,10 @@ export async function locationDetails(req: Request, res: Response) {
     if (!locationId || Number.isNaN(locationId)) {
       return res.status(400).json({ message: "invalid locationId" });
     }
-    
-    const payload = await locationService.getLocationDetails(locationId);
+
+    // Pass the authenticated user's ID so block filtering works on posts
+    const viewerUserId = (req as any).user?.id;
+    const payload = await locationService.getLocationDetails(locationId, viewerUserId);
 
     return res.status(200).json(payload);
   }catch (error: any) {

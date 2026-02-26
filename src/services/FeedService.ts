@@ -3,11 +3,17 @@ import { getUserLocation } from "../utils/redisUserLocation";
 import { LocationDao } from "../dao/LocationDao";
 import { PostService } from "./PostService";
 import { prisma } from "../utils/prisma";
+import redis from "../utils/setupRedis";
 
 const locationDao = new LocationDao();
 const postService = new PostService();
 
 const DEFAULT_FEED_RADIUS_M = 3219; // 2 miles
+
+// Cache the full location list to avoid hitting Postgres on every feed request.
+// Locations are created/deleted infrequently, so a 2-minute TTL is safe.
+const LOCATIONS_CACHE_KEY = "cache:all_locations";
+const LOCATIONS_CACHE_TTL = 120; // seconds
 
 export type InRangeLocation = {
   id: number;
@@ -31,8 +37,15 @@ export class FeedService {
     const prefs = await prisma.user_Settings.findUnique({ where: { userId } });
     const feedRadius = prefs?.feedRadius ?? DEFAULT_FEED_RADIUS_M;
 
-    // ── 3. All active locations ──────────────────────────────────────────────
-    const allLocations = await locationDao.getAllLocations();
+    // ── 3. All active locations (cached to avoid DB hit every request) ─────
+    let allLocations;
+    const cachedLocations = await redis.get(LOCATIONS_CACHE_KEY);
+    if (cachedLocations) {
+      allLocations = JSON.parse(cachedLocations);
+    } else {
+      allLocations = await locationDao.getAllLocations();
+      await redis.setex(LOCATIONS_CACHE_KEY, LOCATIONS_CACHE_TTL, JSON.stringify(allLocations));
+    }
 
     // ── 4. Filter: location centre must be within user's feed radius ─────────
     // A location qualifies if its centre is within `feedRadius` metres of the

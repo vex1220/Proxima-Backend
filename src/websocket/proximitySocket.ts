@@ -26,17 +26,40 @@ export function setupProximitySocket(
     };
   },
 ) {
+  // ── Throttle: only recalculate nearby count every 10 seconds max ────────
+  // The location is ALWAYS saved to Redis (fast single GEOADD), but the
+  // expensive part — GEORADIUS + mutual filtering + block list lookups — only
+  // runs when enough time has passed. Without this, every 10-second heartbeat
+  // from every connected user triggers a full scan, and it gets linearly
+  // slower as you add more locations/users.
+  let lastCountCalcTime = 0;
+  const COUNT_THROTTLE_MS = 10_000;
+
   socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
+      // Always save location — this is a single fast GEOADD
       await saveUserLocation(user.id, { latitude, longitude });
+
+      // Only recalculate nearby count if enough time has passed
+      const now = Date.now();
+      if (now - lastCountCalcTime < COUNT_THROTTLE_MS) return;
+      lastCountCalcTime = now;
 
       const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
+      // Pre-filter: only keep users who are actually connected right now.
+      // GEORADIUS returns stale entries from users who disconnected but whose
+      // Redis geo entry hasn't been cleaned up yet. Filtering here avoids
+      // wasted GEOPOS lookups in filterMutuallyNearbyUsers.
+      const connectedNearbyIds = nearbyUserIds.filter(
+        (id) => id !== user.id && userSocketMap[id] != null
+      );
+
       // Filter out blocked users before counting nearby users
       const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
-      const visibleNearbyUserIds = nearbyUserIds.filter(
-        (id) => id !== user.id && !blockedUserIds.has(id)
+      const visibleNearbyUserIds = connectedNearbyIds.filter(
+        (id) => !blockedUserIds.has(id)
       );
 
       const mutualSocketIds = await filterMutuallyNearbyUsers(
