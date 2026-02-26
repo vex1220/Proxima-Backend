@@ -59,6 +59,7 @@ app.use((req, res, next) => {
 });
 
 // ── Routes ────────────────────────────────────────────────────────────────────
+app.get("/health", (req, res) => res.json({ ok: true }));
 app.use("/api/", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/chatroom", chatRoomRoutes);
