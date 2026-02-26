@@ -55,24 +55,40 @@ router.post(
     try {
       if (!req.file) return res.status(400).json({ error: "No image provided" });
 
-      // Scale down to TARGET_WIDTH if wider, otherwise keep original dimensions.
-      // `inside` preserves aspect ratio — no cropping, no distortion.
-      const processed = await sharp(req.file.buffer)
-        .resize(TARGET_WIDTH, undefined, {
-          fit: "inside",
-          withoutEnlargement: true,
-        })
-        .jpeg({ quality: 85, progressive: true })
-        .toBuffer();
+      const isGif = req.file.mimetype === "image/gif";
 
-      const key = `chat-images/${uuidv4()}.jpg`;
+      let processed: Buffer;
+      let contentType: string;
+      let ext: string;
+
+      if (isGif) {
+        // Preserve GIF as-is to keep animation intact.
+        // sharp's default pipeline would flatten frames into a single JPEG.
+        processed = req.file.buffer;
+        contentType = "image/gif";
+        ext = "gif";
+      } else {
+        // Scale down to TARGET_WIDTH if wider, otherwise keep original dimensions.
+        // `inside` preserves aspect ratio — no cropping, no distortion.
+        processed = await sharp(req.file.buffer)
+          .resize(TARGET_WIDTH, undefined, {
+            fit: "inside",
+            withoutEnlargement: true,
+          })
+          .jpeg({ quality: 85, progressive: true })
+          .toBuffer();
+        contentType = "image/jpeg";
+        ext = "jpg";
+      }
+
+      const key = `chat-images/${uuidv4()}.${ext}`;
 
       await s3.send(
         new PutObjectCommand({
           Bucket:      process.env.AWS_BUCKET_NAME!,
           Key:         key,
           Body:        processed,
-          ContentType: "image/jpeg",
+          ContentType: contentType,
         }),
       );
 
