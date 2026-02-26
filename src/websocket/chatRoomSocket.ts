@@ -8,7 +8,7 @@ import { getAndVerifyMessage, verifyChatRoomAndUserInRange, getCachedChatRoomWit
 import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
-import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
+import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
@@ -113,13 +113,18 @@ export function setupChatRoomSocket(
         verifiedRooms.add(roomId);
       }
 
-      const message = await chatRoomMessageService.createChatRoomMessage(
-        chatRoom.id,
-        user.id,
-        content,
-        imageUrl,
-        replyToId ?? undefined,
-      );
+      // Run DB write and block-list lookup in parallel — they're independent
+      // and this cuts the block-cache latency off the critical path.
+      const [message, blockedUserIds] = await Promise.all([
+        chatRoomMessageService.createChatRoomMessage(
+          chatRoom.id,
+          user.id,
+          content,
+          imageUrl,
+          replyToId ?? undefined,
+        ),
+        getCachedBlockRelatedUserIds(user.id).then((ids) => new Set(ids)),
+      ]);
 
       const messageToSend = {
         ...message,
@@ -151,9 +156,6 @@ export function setupChatRoomSocket(
       for (const [uid, entry] of Object.entries(userSocketMap)) {
         socketToUserId[entry.socketId] = Number(uid);
       }
-
-      // Get all user IDs with a block relationship with the sender
-      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
 
       // Deliver individually, skipping blocked users
       const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));

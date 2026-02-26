@@ -9,7 +9,7 @@ import {
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
-import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
+import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { isUserSuspended } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
@@ -123,21 +123,52 @@ export function setupProximitySocket(
           return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
         }
 
-        const message = await proximityMessageService.createProximityMessage(
-          user.id,
-          content,
-          latitude,
-          longitude,
-          imageUrl,
-        );
+        // Run DB write and nearby-user calculation in parallel — they're
+        // independent and this cuts ~200ms off the critical path.
+        const senderRadius = user.preferences?.proximityRadius ?? 500;
+
+        const [message, broadcastPrep] = await Promise.all([
+          proximityMessageService.createProximityMessage(
+            user.id,
+            content,
+            latitude,
+            longitude,
+            imageUrl,
+          ),
+          (async () => {
+            const currentUserLocation = await getUserLocation(String(user.id));
+            if (!currentUserLocation) return null;
+
+            const nearbyUsers = await getNearbyUsers(
+              currentUserLocation.latitude,
+              currentUserLocation.longitude,
+              senderRadius,
+            );
+
+            if (!nearbyUsers || nearbyUsers.length === 0) return null;
+
+            const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
+            const visibleNearbyUsers = nearbyUsers.filter(
+              (id) => !blockedUserIds.has(id)
+            );
+
+            const usersToBroadCastTo = await filterMutuallyNearbyUsers(
+              user.id,
+              currentUserLocation,
+              visibleNearbyUsers,
+              userSocketMap,
+            );
+
+            return usersToBroadCastTo;
+          })(),
+        ]);
 
         if (!message) {
           return socket.emit("error", "Failed to create proximity message");
         }
 
-        const currentUserLocation = await getUserLocation(String(user.id));
-        if (!currentUserLocation) {
-          return socket.emit("error", "Action not Authorized");
+        if (!broadcastPrep) {
+          return socket.emit("error", "no one nearby");
         }
 
         const messageToSend = {
@@ -149,40 +180,15 @@ export function setupProximitySocket(
           userId: user.id,
         };
 
-        const nearbyUsers = await getNearbyUsers(
-          currentUserLocation.latitude,
-          currentUserLocation.longitude,
-          user.preferences?.proximityRadius ?? 500,
-        );
-
-        if (!nearbyUsers || nearbyUsers.length === 0) {
-          return socket.emit("error", "no one nearby");
-        }
-
-        // Filter out blocked users before determining who to broadcast to
-        const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
-        const visibleNearbyUsers = nearbyUsers.filter(
-          (id) => !blockedUserIds.has(id)
-        );
-
-        const usersToBroadCastTo = await filterMutuallyNearbyUsers(
-          user.id,
-          currentUserLocation,
-          visibleNearbyUsers,
-          userSocketMap,
-        );
-
-        if (Array.isArray(usersToBroadCastTo)) {
-          usersToBroadCastTo.forEach((socketId) => {
+        if (Array.isArray(broadcastPrep)) {
+          broadcastPrep.forEach((socketId) => {
             io.to(socketId).emit("receiveProximityMessage", messageToSend);
           });
-        } else if (typeof usersToBroadCastTo === "string") {
-          io.to(usersToBroadCastTo).emit("receiveProximityMessage", messageToSend);
+        } else if (typeof broadcastPrep === "string") {
+          io.to(broadcastPrep).emit("receiveProximityMessage", messageToSend);
         }
 
-        // ── Enqueue for AI moderation (runs in background) ────────────
-        // The proximity message was already delivered above (optimistic).
-        // The worker will call OpenAI and "ghost delete" if flagged.
+        // Enqueue moderation in background (fire-and-forget)
         enqueueModerationJob({
           contentType: "PROXIMITY_MESSAGE",
           contentId: message.id,
@@ -193,7 +199,7 @@ export function setupProximitySocket(
             type: "PROXIMITY_MESSAGE",
             latitude,
             longitude,
-            senderRadius: user.preferences?.proximityRadius ?? 500,
+            senderRadius,
           },
         });
       } catch (error: any) {

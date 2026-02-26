@@ -9,7 +9,7 @@ import {
 import { VoteService } from "./VoteService";
 import { LocationDao } from "../dao/LocationDao";
 import { VoteModel } from "../models/voteTypes";
-import { getAllBlockRelatedUserIdsDao, getCachedBlockRelatedUserIds } from "../dao/BlockDao";
+import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 
 const chatRoomMessageService = new ChatRoomMessageService();
 const voteService = new VoteService(VoteModel.ChatRoomMessageVote);

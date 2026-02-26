@@ -73,7 +73,7 @@ export const createPost = withAuth(async (req, res) => {
       },
     });
 
-    const postList = await postService.getPostListByLocation(locationId, user.id);
+    const postList = await postService.getPostListByLocationBatched(locationId, user.id);
 
     return res.status(201).json({
       message: `successfully posted`,

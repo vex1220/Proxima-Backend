@@ -27,25 +27,23 @@ export type FeedResult = {
 
 export class FeedService {
   async getFeedForUser(userId: number): Promise<FeedResult> {
-    // ── 1. User position ────────────────────────────────────────────────────
-    const userPos = await getUserLocation(String(userId));
+    // ── 1–3. Fetch user position, preferences, and locations in parallel ───
+    const [userPos, prefs, allLocations] = await Promise.all([
+      getUserLocation(String(userId)),
+      prisma.user_Settings.findUnique({ where: { userId } }),
+      redis.get(LOCATIONS_CACHE_KEY).then(async (cached) => {
+        if (cached) return JSON.parse(cached);
+        const locations = await locationDao.getAllLocations();
+        await redis.setex(LOCATIONS_CACHE_KEY, LOCATIONS_CACHE_TTL, JSON.stringify(locations));
+        return locations;
+      }),
+    ]);
+
     if (!userPos) {
       throw new Error("User location not found — make sure location tracking is active");
     }
 
-    // ── 2. User's feed radius preference ────────────────────────────────────
-    const prefs = await prisma.user_Settings.findUnique({ where: { userId } });
     const feedRadius = prefs?.feedRadius ?? DEFAULT_FEED_RADIUS_M;
-
-    // ── 3. All active locations (cached to avoid DB hit every request) ─────
-    let allLocations;
-    const cachedLocations = await redis.get(LOCATIONS_CACHE_KEY);
-    if (cachedLocations) {
-      allLocations = JSON.parse(cachedLocations);
-    } else {
-      allLocations = await locationDao.getAllLocations();
-      await redis.setex(LOCATIONS_CACHE_KEY, LOCATIONS_CACHE_TTL, JSON.stringify(allLocations));
-    }
 
     // ── 4. Filter: location centre must be within user's feed radius ─────────
     // A location qualifies if its centre is within `feedRadius` metres of the

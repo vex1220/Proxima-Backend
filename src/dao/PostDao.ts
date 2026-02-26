@@ -69,6 +69,7 @@ async getPostsByLocation(locationId: number) {
                 _count:   { select: { comments: { where: { deleted: false } } } },
             },
             orderBy: { createdAt: "desc" },
+            take: 50,
         });
     }
 }

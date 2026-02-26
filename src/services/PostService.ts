@@ -5,7 +5,7 @@ import { validatePost } from "../utils/postValidator";
 import { PostCommentService } from "./PostCommentService";
 import { VoteService } from "./VoteService";
 import { VoteModel } from "../models/voteTypes";
-import { getAllBlockRelatedUserIdsDao } from "../dao/BlockDao";
+import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
@@ -52,7 +52,7 @@ export class PostService {
 
     // If we have a viewer, filter out posts from users they've blocked (or who blocked them)
     const blockedUserIds = viewerUserId
-      ? new Set(await getAllBlockRelatedUserIdsDao(viewerUserId))
+      ? new Set(await getCachedBlockRelatedUserIds(viewerUserId))
       : new Set<number>();
 
     const visiblePosts = posts.filter((post) => !blockedUserIds.has(post.posterId));
@@ -81,7 +81,7 @@ export class PostService {
     const posts = await postDao.getPostsByLocation(locationId);
 
     const blockedUserIds = viewerUserId
-      ? new Set(await getAllBlockRelatedUserIdsDao(viewerUserId))
+      ? new Set(await getCachedBlockRelatedUserIds(viewerUserId))
       : new Set<number>();
 
     const visiblePosts = posts.filter((post) => !blockedUserIds.has(post.posterId));
@@ -107,7 +107,7 @@ export class PostService {
     const rawPosts = await postDao.getPostsByLocationIds(locationIds);
 
     // Filter out blocked users only (viewer can see their own posts)
-    const blockedIds = new Set(await getAllBlockRelatedUserIdsDao(viewerUserId));
+    const blockedIds = new Set(await getCachedBlockRelatedUserIds(viewerUserId));
     const visible = rawPosts.filter((p) => !blockedIds.has(p.posterId));
 
     if (visible.length === 0) return [];
@@ -154,7 +154,7 @@ export class PostService {
 
     // Filter out comments from blocked users
     const blockedUserIds = userId
-      ? new Set(await getAllBlockRelatedUserIdsDao(userId))
+      ? new Set(await getCachedBlockRelatedUserIds(userId))
       : new Set<number>();
 
     const comments = allComments.filter(
