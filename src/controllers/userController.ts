@@ -9,8 +9,12 @@ import {
 } from "../services/userService";
 import { updateUserProximityRadius, updateUserFeedRadius } from "../dao/userServiceDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
+import { PostDao } from "../dao/PostDao";
+import { PostCommentService } from "../services/PostCommentService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
+const postDao = new PostDao();
+const postCommentService = new PostCommentService();
 
 export async function deleteUser(req: Request, res: Response) {
   try {
@@ -174,6 +178,42 @@ export async function changeUserFeedRadius(req: Request, res: Response) {
       feedRadius: newFeedRadius,
       message: `Feed radius updated to ${newFeedRadius}m`,
     });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+// =============================================================================
+// GET /user/posts — Return the authenticated user's posts
+// =============================================================================
+
+export async function getUserPosts(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+
+    const posts = await postDao.getPostsByUser(user.id);
+    return res.status(200).json({ posts });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+// =============================================================================
+// GET /user/comments — Return the authenticated user's comments (on active posts)
+// =============================================================================
+
+export async function getUserComments(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "request from user that does not exist" });
+    }
+
+    const comments = await postCommentService.getPostCommentsByUser(user.id);
+    return res.status(200).json({ comments });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

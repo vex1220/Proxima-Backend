@@ -33,10 +33,23 @@ export class PostCommentDao{
         });
     }
 
-    async getPostCommentsByUser(userId:number){
+    async getPostCommentsByUser(userId: number) {
         return prisma.postComment.findMany({
-            where: {commenterId : userId, deleted:false},
-            orderBy:{createdAt: "desc"}
+            where: {
+                commenterId: userId,
+                deleted:     false,
+                post:        { deleted: false },
+            },
+            select: {
+                id:        true,
+                content:   true,
+                imageUrl:  true,
+                createdAt: true,
+                post: {
+                    select: { id: true, title: true, locationId: true },
+                },
+            },
+            orderBy: { createdAt: "desc" },
         });
     }
 }
