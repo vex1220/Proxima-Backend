@@ -1,5 +1,5 @@
 import { Server, Socket } from "socket.io";
-import { User } from "@prisma/client";
+import { UserWithPreferences } from "../models/userTypes";
 import { getLastFiftyMessages } from "../services/chatRoomService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { updateUserKarma } from "../services/userService";
@@ -23,7 +23,7 @@ const voteService = new VoteService(VoteModel.ChatRoomMessageVote);
 export function setupChatRoomSocket(
   io: Server,
   socket: Socket,
-  user: User,
+  user: UserWithPreferences,
   userSocketMap: { [userId: number]: { socketId: string; proximityRadius: number } },
 ) {
   // Track rooms where this socket has already passed range verification.
