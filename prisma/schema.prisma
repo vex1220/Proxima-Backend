@@ -80,6 +80,8 @@ model Location {
 
   @@index([latitude, longitude])
   @@index([type])
+  @@index([deleted])
+  @@index([name, deleted])
 }
 
 model Post {
@@ -168,6 +170,9 @@ model ChatRoomMessage {
   replyTo          ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies          ChatRoomMessage[]     @relation("MessageReplies")
   votes            ChatRoomMessageVote[]
+
+  @@index([chatRoomId, createdAt])
+  @@index([senderId])
 }
 
 model ChatRoomMessageVote {
@@ -180,6 +185,7 @@ model ChatRoomMessageVote {
   message   ChatRoomMessage @relation(fields: [targetId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetId])
+  @@index([targetId])
 }
 
 model ProximityMessage {
@@ -234,6 +240,7 @@ model UserBlock {
   blocked   User     @relation("BlocksReceived", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
+  @@index([blockedId])
 }
 
 // ─── Reporting ────────────────────────────────────────────────────────────────
