@@ -95,6 +95,8 @@ export async function userDetails(req: Request, res: Response) {
       isEmailVerified: user.isVerified,
       feedRadius: user.preferences?.feedRadius ?? 3219,
       anonymousMode: user.preferences?.anonymousMode ?? true,
+      suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
+      suspendedContentPreview: user.suspendedContentPreview ?? null,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });

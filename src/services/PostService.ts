@@ -189,7 +189,7 @@ export class PostService {
     return {
       id: post.id,
       title: post.title,
-      content: post.content,
+      content: post.content ?? "",
       imageUrl: post.imageUrl,
       posterId: post.posterId,
       posterDisplayId: (post as any).wasAnonymous ? "Anonymous" : post.poster.displayId,

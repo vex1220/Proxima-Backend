@@ -36,6 +36,9 @@ import logger from "../utils/logger";
 import { dequeueModerationJob } from "./moderationQueue";
 import { moderateContent } from "./moderationService";
 import { ModerationJob, ModeratableContentType } from "./moderationTypes";
+import { suspendUser } from "../services/userService";
+
+const SUSPENSION_DURATION_MINUTES = 240; // 4 hours per violation
 
 // How many parallel worker loops to run. Start with 1, increase if your
 // queue starts backing up (monitor via getQueueLength()).
@@ -148,9 +151,24 @@ async function handleRejection(job: ModerationJob): Promise<void> {
   // ── 1. Update the database (single atomic write) ─────────────────────
   await rejectContent(job.contentType, job.contentId);
 
-  // ── 2. Emit real-time "ghost delete" via WebSocket ───────────────────
-  // This makes the content disappear from everyone's screen RIGHT NOW,
-  // without them needing to refresh.
+  // ── 2. Suspend the user for 4 hours ──────────────────────────────────
+  const contentPreview = job.text
+    ? job.text.length > 300 ? job.text.slice(0, 300) + "…" : job.text
+    : null;
+
+  const suspendedUntil = new Date(Date.now() + SUSPENSION_DURATION_MINUTES * 60 * 1000);
+  await suspendUser(job.userId, SUSPENSION_DURATION_MINUTES, contentPreview);
+
+  // ── 3. Notify the user in real-time (if they're connected) ───────────
+  if (io) {
+    io.to(`user:${job.userId}`).emit("accountSuspended", {
+      suspendedUntil: suspendedUntil.toISOString(),
+      contentPreview,
+    });
+    logger.info(`[ModerationWorker] Suspended user #${job.userId} until ${suspendedUntil.toISOString()}`);
+  }
+
+  // ── 4. Emit real-time "ghost delete" via WebSocket ───────────────────
   if (job.socketMeta && io) {
     emitGhostDelete(job);
   }

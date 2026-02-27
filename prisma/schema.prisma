@@ -18,6 +18,7 @@ model User {
   deleted                 Boolean               @default(false)
   isVerified              Boolean               @default(false)
   suspendedUntil          DateTime?
+  suspendedContentPreview String?
   ChatRoomMessages        ChatRoomMessage[]
   ProximityMessages       ProximityMessage[]
   ChatRoomMessageVotes    ChatRoomMessageVote[]

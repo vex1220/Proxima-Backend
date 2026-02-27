@@ -50,6 +50,9 @@ export function setupSocket(io: Server) {
       proximityRadius: user.preferences?.proximityRadius ?? 1600,
     };
 
+    // Join a personal room so the moderation worker can emit targeted events
+    socket.join(`user:${user.id}`);
+
     console.log(`User ${user.displayId} connected via WebSocket`);
 
     // Both socket handlers now receive the userSocketMap for block filtering

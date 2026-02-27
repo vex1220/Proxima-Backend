@@ -158,17 +158,31 @@ export async function setUserVerifiedDao(id: number) {
 
 // ─── Suspension ───────────────────────────────────────────────────────────────
 
-export async function suspendUserDao(id: number, until: Date) {
+export async function suspendUserDao(id: number, until: Date, contentPreview?: string | null) {
   return prisma.user.update({
     where: { id },
-    data: { suspendedUntil: until },
+    data: {
+      suspendedUntil: until,
+      suspendedContentPreview: contentPreview ?? null,
+    },
   });
+}
+
+export async function checkUserSuspendedById(userId: number): Promise<{ suspended: boolean; until: Date | null }> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { suspendedUntil: true },
+  });
+  if (!user?.suspendedUntil) return { suspended: false, until: null };
+  if (user.suspendedUntil > new Date()) return { suspended: true, until: user.suspendedUntil };
+  await prisma.user.update({ where: { id: userId }, data: { suspendedUntil: null, suspendedContentPreview: null } });
+  return { suspended: false, until: null };
 }
 
 export async function unsuspendUserDao(id: number) {
   return prisma.user.update({
     where: { id },
-    data: { suspendedUntil: null },
+    data: { suspendedUntil: null, suspendedContentPreview: null },
   });
 }
 

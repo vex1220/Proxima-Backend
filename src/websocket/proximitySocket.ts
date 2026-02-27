@@ -10,7 +10,7 @@ import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
-import { isUserSuspended } from "../services/userService";
+import { isUserSuspendedById } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
 const proximityMessageService = new ProximityMessageService();
@@ -112,15 +112,19 @@ export function setupProximitySocket(
     async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
-      if (!content || content.length > 2000){
-        socket.emit("error", "Message too long");
-        return 
-      }
+        if (!content && !imageUrl) {
+          socket.emit("error", "Message cannot be empty");
+          return;
+        }
+        if (content && content.length > 2000) {
+          socket.emit("error", "Message too long");
+          return;
+        }
 
-        // Block suspended users from sending proximity messages
-        if (await isUserSuspended(user as any)) {
-          const until = (user as any).suspendedUntil as Date;
-          return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
+        // Block suspended users from sending proximity messages (fresh DB check)
+        const { suspended, until: suspendedUntil } = await isUserSuspendedById(user.id);
+        if (suspended) {
+          return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
         }
 
         // Run DB write and nearby-user calculation in parallel — they're

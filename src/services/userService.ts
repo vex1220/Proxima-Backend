@@ -12,6 +12,7 @@ import {
   suspendUserDao,
   unsuspendUserDao,
   getSuspendedUsersDao,
+  checkUserSuspendedById,
 } from "../dao/userServiceDao";
 
 export async function createUser(
@@ -80,9 +81,13 @@ export async function setUserVerified(userId: number) {
  * Suspend a user until the given date.
  * @param durationMinutes  How long the suspension should last.
  */
-export async function suspendUser(userId: number, durationMinutes: number) {
+export async function suspendUser(userId: number, durationMinutes: number, contentPreview?: string | null) {
   const until = new Date(Date.now() + durationMinutes * 60 * 1000);
-  return suspendUserDao(userId, until);
+  return suspendUserDao(userId, until, contentPreview);
+}
+
+export async function isUserSuspendedById(userId: number): Promise<{ suspended: boolean; until: Date | null }> {
+  return checkUserSuspendedById(userId);
 }
 
 /** Immediately lift a suspension. */

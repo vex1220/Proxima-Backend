@@ -2,7 +2,7 @@ export type CreatePostInput = {
     posterId: number,
     locationId:number,
     title: string,
-    content: string,
+    content?: string,
     imageUrl?: string,
     wasAnonymous?: boolean,
 };

@@ -28,11 +28,6 @@ export function validateLength(content?: string, title?: string) {
 }
 
 export function validatePost(content?: string, title?: string, imageUrl?: string) {
-  // Allow image-only posts/comments — content only required if no image provided
-  if (isEmptyContent(content) && !imageUrl) {
-    throw new Error("Content is required");
-  }
-
   const trimmedContent = isEmptyContent(content) ? undefined : trimContent(content);
   const trimmedTitle = title !== undefined ? trimContent(title) : undefined;
 

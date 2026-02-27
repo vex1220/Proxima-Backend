@@ -9,7 +9,7 @@ import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
-import { isUserSuspended } from "../services/userService";
+import { isUserSuspendedById } from "../services/userService";
 import { enqueueModerationJob } from "../moderation";
 
 function getUserCount(io: Server, roomId: string) {
@@ -94,10 +94,10 @@ export function setupChatRoomSocket(
         return 
       }
 
-      // Block suspended users from sending messages
-      if (await isUserSuspended(user as any)) {
-        const until = (user as any).suspendedUntil as Date;
-        return socket.emit("error", `Your account is suspended until ${until.toUTCString()}`);
+      // Block suspended users from sending messages (fresh DB check)
+      const { suspended, until } = await isUserSuspendedById(user.id);
+      if (suspended) {
+        return socket.emit("suspended", { suspendedUntil: until!.toISOString() });
       }
 
       // Fast path: if user already passed range check when joining, skip the
