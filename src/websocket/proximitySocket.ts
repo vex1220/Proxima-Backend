@@ -2,7 +2,6 @@ import { Server, Socket } from "socket.io";
 import {
   getNearbyUsers,
   saveUserLocation,
-  getUserLocation,
   filterMutuallyNearbyUsers,
   removeUserLocation,
 } from "../utils/redisUserLocation";
@@ -26,21 +25,23 @@ export function setupProximitySocket(
     };
   },
 ) {
-  // ── Throttle: only recalculate nearby count every 10 seconds max ────────
-  // The location is ALWAYS saved to Redis (fast single GEOADD), but the
-  // expensive part — GEORADIUS + mutual filtering + block list lookups — only
-  // runs when enough time has passed. Without this, every 10-second heartbeat
-  // from every connected user triggers a full scan, and it gets linearly
-  // slower as you add more locations/users.
   let lastCountCalcTime = 0;
   const COUNT_THROTTLE_MS = 10_000;
 
+  // Cached mutual user IDs — refreshed every 10s by updateLocation.
+  // The proximityTyping handler reads from this instead of hitting Redis.
+  let cachedMutualUserIds: number[] = [];
+
+  // Track previous mutual set for join/leave detection
+  let previousMutualUserIds = new Set<number>();
+
+  const getDisplayName = () =>
+    user.preferences?.anonymousMode ? "Anonymous" : user.displayId;
+
   socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
-      // Always save location — this is a single fast GEOADD
       await saveUserLocation(user.id, { latitude, longitude });
 
-      // Only recalculate nearby count if enough time has passed
       const now = Date.now();
       if (now - lastCountCalcTime < COUNT_THROTTLE_MS) return;
       lastCountCalcTime = now;
@@ -48,63 +49,58 @@ export function setupProximitySocket(
       const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
-      // Pre-filter: only keep users who are actually connected right now.
-      // GEORADIUS returns stale entries from users who disconnected but whose
-      // Redis geo entry hasn't been cleaned up yet. Filtering here avoids
-      // wasted GEOPOS lookups in filterMutuallyNearbyUsers.
       const connectedNearbyIds = nearbyUserIds.filter(
         (id) => id !== user.id && userSocketMap[id] != null
       );
 
-      // Filter out blocked users before counting nearby users
       const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
       const visibleNearbyUserIds = connectedNearbyIds.filter(
         (id) => !blockedUserIds.has(id)
       );
 
-      const mutualSocketIds = await filterMutuallyNearbyUsers(
+      const mutualUserIds = await filterMutuallyNearbyUsers(
         user.id,
         { latitude, longitude },
         visibleNearbyUserIds,
         userSocketMap,
       );
 
-      const nearbyCount = Array.isArray(mutualSocketIds) ? mutualSocketIds.length : 0;
-      socket.emit("nearbyUserCount", { count: nearbyCount });
+      // Update cached set for typing handler
+      cachedMutualUserIds = mutualUserIds;
+
+      // Detect joins and leaves
+      const currentSet = new Set(mutualUserIds);
+      const displayName = getDisplayName();
+
+      for (const id of mutualUserIds) {
+        if (!previousMutualUserIds.has(id)) {
+          // New user entered mutual range
+          socket.emit("proximityUserJoined", { displayId: String(id) });
+          io.to(`user:${id}`).emit("proximityUserJoined", { displayId: displayName });
+        }
+      }
+
+      for (const id of previousMutualUserIds) {
+        if (!currentSet.has(id)) {
+          // User left mutual range
+          socket.emit("proximityUserLeft", { displayId: String(id) });
+          io.to(`user:${id}`).emit("proximityUserLeft", { displayId: displayName });
+        }
+      }
+
+      previousMutualUserIds = currentSet;
+
+      socket.emit("nearbyUserCount", { count: mutualUserIds.length });
     } catch (error: any) {
       socket.emit("error", "An unexpected error has occurred");
     }
   });
 
-  socket.on("proximityTyping", async ({ isTyping, latitude, longitude }) => {
-    try {
-      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
-      const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
-
-      // Filter out blocked users from typing indicators too
-      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
-      const visibleNearbyUserIds = nearbyUserIds.filter(
-        (id) => id !== user.id && !blockedUserIds.has(id)
-      );
-
-      const mutualSocketIds = await filterMutuallyNearbyUsers(
-        user.id,
-        { latitude, longitude },
-        visibleNearbyUserIds,
-        userSocketMap,
-      );
-
-      if (Array.isArray(mutualSocketIds)) {
-        mutualSocketIds.forEach((socketId) => {
-          io.to(socketId).emit("nearbyUserTyping", {
-            displayId: user.displayId,
-            isTyping,
-          });
-        });
-      }
-    } catch (error: any) {
-      // Typing is best-effort — don't surface errors to the client
-    }
+  socket.on("proximityTyping", ({ isTyping }) => {
+    const displayId = getDisplayName();
+    cachedMutualUserIds.forEach((id) => {
+      io.to(`user:${id}`).emit("nearbyUserTyping", { displayId, isTyping });
+    });
   });
 
   socket.on(
@@ -121,15 +117,13 @@ export function setupProximitySocket(
           return;
         }
 
-        // Block suspended users from sending proximity messages (fresh DB check)
         const { suspended, until: suspendedUntil } = await isUserSuspendedById(user.id);
         if (suspended) {
           return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
         }
 
-        // Run DB write and nearby-user calculation in parallel — they're
-        // independent and this cuts ~200ms off the critical path.
         const senderRadius = user.preferences?.proximityRadius ?? 500;
+        const currentUserLocation = { latitude, longitude };
 
         const [message, broadcastPrep] = await Promise.all([
           proximityMessageService.createProximityMessage(
@@ -140,9 +134,6 @@ export function setupProximitySocket(
             imageUrl,
           ),
           (async () => {
-            const currentUserLocation = await getUserLocation(String(user.id));
-            if (!currentUserLocation) return null;
-
             const nearbyUsers = await getNearbyUsers(
               currentUserLocation.latitude,
               currentUserLocation.longitude,
@@ -156,14 +147,14 @@ export function setupProximitySocket(
               (id) => !blockedUserIds.has(id)
             );
 
-            const usersToBroadCastTo = await filterMutuallyNearbyUsers(
+            const usersToBroadcastTo = await filterMutuallyNearbyUsers(
               user.id,
               currentUserLocation,
               visibleNearbyUsers,
               userSocketMap,
             );
 
-            return usersToBroadCastTo;
+            return usersToBroadcastTo;
           })(),
         ]);
 
@@ -185,15 +176,10 @@ export function setupProximitySocket(
           userId: user.id,
         };
 
-        if (Array.isArray(broadcastPrep)) {
-          broadcastPrep.forEach((socketId) => {
-            io.to(socketId).emit("receiveProximityMessage", messageToSend);
-          });
-        } else if (typeof broadcastPrep === "string") {
-          io.to(broadcastPrep).emit("receiveProximityMessage", messageToSend);
-        }
+        broadcastPrep.forEach((userId) => {
+          io.to(`user:${userId}`).emit("receiveProximityMessage", messageToSend);
+        });
 
-        // Enqueue moderation in background (fire-and-forget)
         enqueueModerationJob({
           contentType: "PROXIMITY_MESSAGE",
           contentId: message.id,
@@ -215,6 +201,10 @@ export function setupProximitySocket(
   );
 
   socket.on("disconnect", () => {
+    const displayName = getDisplayName();
+    for (const id of previousMutualUserIds) {
+      io.to(`user:${id}`).emit("proximityUserLeft", { displayId: displayName });
+    }
     removeUserLocation(user.id);
     console.log(`User ${user.displayId} has been removed from redis server`);
   });

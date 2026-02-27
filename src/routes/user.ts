@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { authenticateToken } from "../middleware/authMiddleware";
+import { authenticateToken, authenticateAdmin } from "../middleware/authMiddleware";
 import { body } from "express-validator";
 import { validateRequest } from "../middleware/validateRequest";
 import {
@@ -15,6 +15,9 @@ import {
   muteLocation,
   unmuteLocation,
   getMutedLocations,
+  adminSuspendUser,
+  adminUnsuspendUser,
+  adminGetSuspendedUsers,
 } from "../controllers/userController";
 import { blockUser, unblockUser, getBlockList } from "../controllers/blockController";
 
@@ -59,5 +62,10 @@ router.post("/anonymousMode", toggleAnonymousMode);
 router.post("/muteLocation", muteLocation);
 router.post("/unmuteLocation", unmuteLocation);
 router.get("/mutedLocations", getMutedLocations);
+
+// Admin suspension
+router.post("/admin/suspend", authenticateAdmin, adminSuspendUser);
+router.post("/admin/unsuspend", authenticateAdmin, adminUnsuspendUser);
+router.get("/admin/suspended", authenticateAdmin, adminGetSuspendedUsers);
 
 export default router;

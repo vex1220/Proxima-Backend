@@ -39,6 +39,13 @@ export async function listLocations(req: Request, res: Response) {
 export async function getLocationsInRange(req: Request, res: Response) {
   try {
     const user = req.user as any;
+
+    if (user.isAdmin) {
+      const allLocations = await locationService.listLocations();
+      const locations = allLocations.map((loc: any) => ({ id: loc.id, name: loc.name }));
+      return res.status(200).json({ locations });
+    }
+
     const { getUserLocation } = await import("../utils/redisUserLocation");
     const { getDistance } = await import("geolib");
 

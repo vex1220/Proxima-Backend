@@ -56,12 +56,14 @@ async function getUserLocationWithRetry(
   return null;
 }
 
-export async function verifyChatRoomAndUserInRange(roomId: number, userId: number) {
+export async function verifyChatRoomAndUserInRange(roomId: number, userId: number, isAdmin?: boolean) {
   const cached = await getCachedChatRoomWithLocation(roomId);
 
   if (!cached?.chatRoom) {
     throw new Error("Chat room not found");
   }
+
+  if (isAdmin) return cached.chatRoom;
 
   const { chatRoom, location } = cached;
 

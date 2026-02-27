@@ -104,8 +104,8 @@ export class PostService {
     }));
   }
 
-  async getFeedPosts(locationIds: number[], viewerUserId: number) {
-    const rawPosts = await postDao.getPostsByLocationIds(locationIds);
+  async getFeedPosts(locationIds: number[], viewerUserId: number, before?: Date) {
+    const { posts: rawPosts, hasMore } = await postDao.getPostsByLocationIds(locationIds, before);
 
     // Filter blocked users and soft-deleted posters in JS — avoids a filtering JOIN in SQL
     const blockedIds = new Set(await getCachedBlockRelatedUserIds(viewerUserId));
@@ -113,7 +113,7 @@ export class PostService {
       (p) => !blockedIds.has(p.posterId) && !p.poster.deleted,
     );
 
-    if (visible.length === 0) return [];
+    if (visible.length === 0) return { posts: [], hasMore };
 
     const postIds = visible.map((p) => p.id);
 
@@ -124,7 +124,7 @@ export class PostService {
       postVoteService.getUserVotesForTargets(viewerUserId, postIds),
     ]);
 
-    return visible.map((p) => ({
+    const posts = visible.map((p) => ({
       id:              p.id,
       title:           p.title,
       content:         p.content ?? "",
@@ -138,6 +138,8 @@ export class PostService {
       userVote:        userVoteMap[p.id] ?? null,
       commentCount:    commentCountMap[p.id] ?? 0,
     }));
+
+    return { posts, hasMore };
   }
 
   /** Returns a post and its comments, with blocked users' comments filtered out */

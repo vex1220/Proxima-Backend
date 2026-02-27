@@ -35,7 +35,7 @@ export function setupChatRoomSocket(
 
   socket.on("joinRoom", async (roomId: number) => {
     try {
-      const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+      const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
       verifiedRooms.add(roomId);
 
       socket.join(String(roomId));
@@ -109,7 +109,7 @@ export function setupChatRoomSocket(
         chatRoom = cached?.chatRoom;
         if (!chatRoom) throw new Error("Chat room not found");
       } else {
-        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
       }
 
@@ -200,7 +200,7 @@ export function setupChatRoomSocket(
         chatRoom = cached?.chatRoom;
         if (!chatRoom) throw new Error("Chat room not found");
       } else {
-        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
       }
       const message = await getAndVerifyMessage(messageId);
@@ -226,7 +226,7 @@ export function setupChatRoomSocket(
         chatRoom = cached?.chatRoom;
         if (!chatRoom) throw new Error("Chat room not found");
       } else {
-        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id);
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
       }
       const message = await getAndVerifyMessage(messageId);
@@ -262,7 +262,7 @@ export function setupChatRoomSocket(
 
   socket.on("typing", ({ roomId, isTyping }) => {
     socket.to(String(roomId)).emit("userTyping", {
-      displayId: user.displayId,
+      displayId: user.preferences?.anonymousMode ? "Anonymous" : user.displayId,
       isTyping,
     });
   });

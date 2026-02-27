@@ -106,9 +106,7 @@ export async function filterMutuallyNearbyUsers(
     }
   }
 
-  return mutuallyNearby
-    .map((id) => userSocketMap[id]?.socketId)
-    .filter(Boolean);
+  return mutuallyNearby;
 }
 
 export async function removeUserLocation(userId: number) {

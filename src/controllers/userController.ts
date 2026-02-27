@@ -6,7 +6,11 @@ import {
   setUserDeleted,
   setUserDisplayId,
   userNameInUse,
+  suspendUser,
+  unsuspendUser,
+  getSuspendedUsers,
 } from "../services/userService";
+import { getIo } from "../websocket/ioInstance";
 import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao } from "../dao/userServiceDao";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
@@ -19,14 +23,7 @@ const postCommentService = new PostCommentService();
 
 export async function deleteUser(req: Request, res: Response) {
   try {
-    const { userId } = req.body;
     const user = req.user;
-
-    const userToDelete = await getUserById(userId);
-
-    if (!userToDelete) {
-      return res.status(404).json({ message: "User Not Found" });
-    }
 
     if (!user) {
       return res
@@ -34,8 +31,14 @@ export async function deleteUser(req: Request, res: Response) {
         .json({ message: "request from user that does not exist" });
     }
 
-    if (user.id != userId && !user.isAdmin) {
-      return res.status(403).json({ message: "action not Authorized" });
+    // Admins can delete other users by passing userId in the body;
+    // regular users always delete their own account.
+    const targetId = user.isAdmin && req.body.userId ? req.body.userId : user.id;
+
+    const userToDelete = await getUserById(targetId);
+
+    if (!userToDelete) {
+      return res.status(404).json({ message: "User Not Found" });
     }
 
     const result = await setUserDeleted(userToDelete);
@@ -291,6 +294,69 @@ export async function getMutedLocations(req: Request, res: Response) {
     }
     const locations = await getMutedLocationsDao(user.id);
     return res.status(200).json({ locations });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function adminSuspendUser(req: Request, res: Response) {
+  try {
+    const { displayId, durationMinutes } = req.body;
+    if (!displayId || typeof displayId !== "string") {
+      return res.status(400).json({ message: "displayId is required" });
+    }
+    if (typeof durationMinutes !== "number" || durationMinutes <= 0) {
+      return res.status(400).json({ message: "durationMinutes must be a positive number" });
+    }
+
+    const targetUser = await getUserByDisplayId(displayId);
+    if (!targetUser || targetUser.deleted) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await suspendUser(targetUser.id, durationMinutes);
+    const suspendedUntil = new Date(Date.now() + durationMinutes * 60 * 1000);
+
+    const io = getIo();
+    if (io) {
+      io.to(`user:${targetUser.id}`).emit("accountSuspended", {
+        suspendedUntil: suspendedUntil.toISOString(),
+        contentPreview: null,
+      });
+    }
+
+    return res.status(200).json({
+      message: `User ${displayId} has been suspended`,
+      suspendedUntil: suspendedUntil.toISOString(),
+    });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function adminUnsuspendUser(req: Request, res: Response) {
+  try {
+    const { displayId } = req.body;
+    if (!displayId || typeof displayId !== "string") {
+      return res.status(400).json({ message: "displayId is required" });
+    }
+
+    const targetUser = await getUserByDisplayId(displayId);
+    if (!targetUser || targetUser.deleted) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    await unsuspendUser(targetUser.id);
+    return res.status(200).json({ message: `User ${displayId} has been unsuspended` });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function adminGetSuspendedUsers(req: Request, res: Response) {
+  try {
+    const suspendedUsers = await getSuspendedUsers();
+    return res.status(200).json({ suspendedUsers });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

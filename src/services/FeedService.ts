@@ -22,12 +22,13 @@ export type InRangeLocation = {
 };
 
 export type FeedResult = {
-  posts: Awaited<ReturnType<PostService["getFeedPosts"]>>;
-  inRangeLocations: InRangeLocation[];
+  posts: Awaited<ReturnType<PostService["getFeedPosts"]>>["posts"];
+  hasMore: boolean;
+  inRangeLocations?: InRangeLocation[];
 };
 
 export class FeedService {
-  async getFeedForUser(userId: number): Promise<FeedResult> {
+  async getFeedForUser(userId: number, before?: Date): Promise<FeedResult> {
     // ── 1–3. Fetch user position, preferences, locations, and muted IDs in parallel
     const [userPos, prefs, allLocations, mutedIds] = await Promise.all([
       getUserLocation(String(userId)),
@@ -67,8 +68,12 @@ export class FeedService {
 
     // ── 6. Posts + result ───────────────────────────────────────────────────
     const locationIds = visibleLocations.map((l) => l.id);
-    const posts = await postService.getFeedPosts(locationIds, userId);
+    const { posts, hasMore } = await postService.getFeedPosts(locationIds, userId, before);
 
-    return { posts, inRangeLocations: visibleLocations };
+    return {
+      posts,
+      hasMore,
+      ...(before ? {} : { inRangeLocations: visibleLocations }),
+    };
   }
 }

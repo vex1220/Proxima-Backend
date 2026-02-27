@@ -61,12 +61,14 @@ async getPostsByLocation(locationId: number) {
         });
     }
 
-    async getPostsByLocationIds(locationIds: number[]) {
-        if (locationIds.length === 0) return [];
-        return prisma.post.findMany({
+    async getPostsByLocationIds(locationIds: number[], before?: Date) {
+        if (locationIds.length === 0) return { posts: [], hasMore: false };
+        const PAGE_SIZE = 50;
+        const rows = await prisma.post.findMany({
             where: {
                 locationId: { in: locationIds },
                 deleted: false,
+                ...(before ? { createdAt: { lt: before } } : {}),
             },
             select: {
                 id: true,
@@ -81,7 +83,9 @@ async getPostsByLocation(locationId: number) {
                 location: { select: { name: true } },
             },
             orderBy: { createdAt: "desc" },
-            take: 50,
+            take: PAGE_SIZE + 1,
         });
+        const hasMore = rows.length > PAGE_SIZE;
+        return { posts: hasMore ? rows.slice(0, PAGE_SIZE) : rows, hasMore };
     }
 }

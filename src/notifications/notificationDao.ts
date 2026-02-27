@@ -6,7 +6,18 @@
 // =============================================================================
 
 import { prisma } from "../utils/prisma";
+import redis from "../utils/setupRedis";
 import { NotificationPayload } from "./notificationTypes";
+
+const UNREAD_CACHE_TTL = 15;
+
+function unreadCacheKey(userId: number) {
+  return `cache:notif:unread:${userId}`;
+}
+
+async function invalidateUnreadCache(userId: number) {
+  await redis.del(unreadCacheKey(userId));
+}
 
 // ─── Push Token Operations ───────────────────────────────────────────────────
 
@@ -50,7 +61,7 @@ export async function getPushTokensForUser(userId: number): Promise<string[]> {
 
 /** Save a notification to the database (in-app notification log). */
 export async function createNotification(payload: NotificationPayload) {
-  return prisma.notification.create({
+  const result = await prisma.notification.create({
     data: {
       userId: payload.userId,
       type: payload.type,
@@ -59,6 +70,8 @@ export async function createNotification(payload: NotificationPayload) {
       data: payload.data ?? undefined,
     },
   });
+  await invalidateUnreadCache(payload.userId);
+  return result;
 }
 
 /**
@@ -82,25 +95,35 @@ export async function getNotificationsForUser(
 
 /** Count unread notifications for a user (for badge display). */
 export async function getUnreadCount(userId: number): Promise<number> {
-  return prisma.notification.count({
+  const key = unreadCacheKey(userId);
+  const cached = await redis.get(key);
+  if (cached !== null) return Number(cached);
+
+  const count = await prisma.notification.count({
     where: { userId, read: false },
   });
+  await redis.setex(key, UNREAD_CACHE_TTL, count);
+  return count;
 }
 
 /** Mark a single notification as read. */
 export async function markAsRead(notificationId: number, userId: number) {
-  return prisma.notification.updateMany({
+  const result = await prisma.notification.updateMany({
     where: { id: notificationId, userId },
     data: { read: true },
   });
+  await invalidateUnreadCache(userId);
+  return result;
 }
 
 /** Mark ALL notifications as read for a user. */
 export async function markAllAsRead(userId: number) {
-  return prisma.notification.updateMany({
+  const result = await prisma.notification.updateMany({
     where: { userId, read: false },
     data: { read: true },
   });
+  await invalidateUnreadCache(userId);
+  return result;
 }
 
 // ─── Deduplication ───────────────────────────────────────────────────────────

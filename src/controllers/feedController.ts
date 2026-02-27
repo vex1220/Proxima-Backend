@@ -6,7 +6,17 @@ const feedService = new FeedService();
 export const getFeed = withAuth(async (req, res) => {
   try {
     const user = req.user;
-    const result = await feedService.getFeedForUser(user.id);
+
+    let before: Date | undefined;
+    if (req.query.before) {
+      const parsed = new Date(req.query.before as string);
+      if (isNaN(parsed.getTime())) {
+        return res.status(400).json({ message: "Invalid 'before' date" });
+      }
+      before = parsed;
+    }
+
+    const result = await feedService.getFeedForUser(user.id, before);
     return res.status(200).json(result);
   } catch (error: any) {
     // Distinguish "no location" from real server errors

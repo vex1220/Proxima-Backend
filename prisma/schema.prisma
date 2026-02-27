@@ -222,6 +222,8 @@ model ProximityMessage {
   latitude         Float
   longitude        Float
   sender           User             @relation(fields: [senderId], references: [id])
+
+  @@index([senderId])
 }
 
 enum FeedbackCategory {
