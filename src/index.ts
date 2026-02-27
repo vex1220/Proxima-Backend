@@ -1,3 +1,13 @@
+import * as Sentry from "@sentry/node";
+
+// Initialize Sentry before anything else so it can instrument all modules.
+Sentry.init({
+  dsn: process.env.SENTRY_DSN,
+  enabled: process.env.NODE_ENV === "production",
+  tracesSampleRate: 0.1,
+  environment: process.env.NODE_ENV ?? "development",
+});
+
 import express from "express";
 import { Server } from "socket.io";
 import cors from "cors";
@@ -79,6 +89,9 @@ app.get("/", (_req, res) => {
 });
 
 // ── Error handler (must be last) ──────────────────────────────────────────────
+// Sentry must capture the error before we respond, so its handler comes first.
+Sentry.setupExpressErrorHandler(app);
+
 app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   console.error(err);
   res.status(err.status || 500).json({

@@ -23,7 +23,7 @@
 
 import logger from "../utils/logger";
 import { NotificationPayload } from "./notificationTypes";
-import { getPushTokensForUser } from "./notificationDao";
+import { getPushTokensForUser, removePushToken } from "./notificationDao";
 
 const EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send";
 
@@ -116,11 +116,18 @@ async function sendToExpo(messages: ExpoPushMessage[]): Promise<void> {
 
     // Check for individual ticket errors (e.g. invalid token)
     if (result?.data) {
-      for (const ticket of result.data) {
+      for (let i = 0; i < result.data.length; i++) {
+        const ticket = result.data[i];
         if (ticket.status === "error") {
           logger.warn(`[Push] Ticket error: ${ticket.message}`);
-          // TODO: If error is "DeviceNotRegistered", remove the token
-          // from the database. This keeps your token table clean.
+          if (ticket.details?.error === "DeviceNotRegistered") {
+            const staleToken = messages[i]?.to;
+            if (staleToken) {
+              removePushToken(staleToken).catch((err: unknown) =>
+                logger.warn(`[Push] Failed to remove stale token:`, err)
+              );
+            }
+          }
         }
       }
     }

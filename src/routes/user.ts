@@ -30,7 +30,7 @@ router.post(
     body("newUserName")
       .not()
       .isEmail()
-      .withMessage("username cannot be an email address dummy"),
+      .withMessage("Username cannot be an email address."),
   ],
   validateRequest,
   changeUsername,
