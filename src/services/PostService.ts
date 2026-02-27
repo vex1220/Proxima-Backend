@@ -107,16 +107,19 @@ export class PostService {
   async getFeedPosts(locationIds: number[], viewerUserId: number) {
     const rawPosts = await postDao.getPostsByLocationIds(locationIds);
 
-    // Filter out blocked users only (viewer can see their own posts)
+    // Filter blocked users and soft-deleted posters in JS — avoids a filtering JOIN in SQL
     const blockedIds = new Set(await getCachedBlockRelatedUserIds(viewerUserId));
-    const visible = rawPosts.filter((p) => !blockedIds.has(p.posterId));
+    const visible = rawPosts.filter(
+      (p) => !blockedIds.has(p.posterId) && !p.poster.deleted,
+    );
 
     if (visible.length === 0) return [];
 
-    // Batch-fetch user votes AND vote counts in parallel — 2 queries total
-    // instead of N+1 individual aggregates
     const postIds = visible.map((p) => p.id);
-    const [voteCountMap, userVoteMap] = await Promise.all([
+
+    // 3 queries in parallel: comment counts + vote sums + user's own votes
+    const [commentCountMap, voteCountMap, userVoteMap] = await Promise.all([
+      postCommentService.getCommentCountsBatch(postIds),
       postVoteService.getVoteCountsBatch(postIds),
       postVoteService.getUserVotesForTargets(viewerUserId, postIds),
     ]);
@@ -133,7 +136,7 @@ export class PostService {
       createdAt:       p.createdAt,
       voteCount:       voteCountMap[p.id] ?? 0,
       userVote:        userVoteMap[p.id] ?? null,
-      commentCount:    p._count.comments,
+      commentCount:    commentCountMap[p.id] ?? 0,
     }));
   }
 

@@ -9,6 +9,7 @@ import chatRoomRoutes from "./routes/chatRoom";
 import locationRoutes from "./routes/location";
 import userRoutes from "./routes/user";
 import { setupSocket } from "./websocket/setupSocket";
+import { setIo } from "./websocket/ioInstance";
 import { startModerationWorker } from "./moderation";
 import helmet from "helmet";
 import logger from "./utils/logger";
@@ -96,6 +97,7 @@ const io = new Server(httpServer, {
     credentials: true,
   },
 });
+setIo(io);
 setupSocket(io);
 
 // ── Moderation Worker ─────────────────────────────────────────────────────────

@@ -175,10 +175,11 @@ export function setupProximitySocket(
           return socket.emit("error", "no one nearby");
         }
 
+        const wasAnonymous = user.preferences?.anonymousMode ?? true;
         const messageToSend = {
           ...message,
           content: message.content,
-          senderDisplayId: message.sender.displayId,
+          senderDisplayId: wasAnonymous ? "Anonymous" : message.sender.displayId,
           timestamp: message.createdAt,
           messageId: message.id,
           userId: user.id,

@@ -118,6 +118,7 @@ model Post {
   votes            PostVote[]
 
   @@index(locationId)
+  @@index([locationId, deleted, createdAt(sort: Desc)])
 }
 
 model PostComment {
@@ -147,6 +148,7 @@ model PostVote {
   post      Post     @relation(fields: [targetId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetId])
+  @@index([targetId])
 }
 
 model PostCommentVote {
@@ -159,6 +161,7 @@ model PostCommentVote {
   post      PostComment @relation(fields: [targetId], references: [id], onDelete: Cascade)
 
   @@unique([userId, targetId])
+  @@index([targetId])
 }
 
 model ChatRoom {

@@ -4,6 +4,7 @@ import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
 import { removeUserLocation } from "../utils/redisUserLocation";
+import { clearSession } from "../utils/redisSession";
 
 const userSocketMap: {
   [userId: number]: {
@@ -61,6 +62,7 @@ export function setupSocket(io: Server) {
 
     socket.on("disconnect", () => {
       delete userSocketMap[user.id];
+      clearSession(user.id).catch(() => {});
       console.log(`User ${user.displayId} disconnected`);
     });
   });

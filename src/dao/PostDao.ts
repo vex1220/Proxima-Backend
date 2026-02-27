@@ -67,7 +67,6 @@ async getPostsByLocation(locationId: number) {
             where: {
                 locationId: { in: locationIds },
                 deleted: false,
-                poster: { deleted: false },
             },
             select: {
                 id: true,
@@ -78,9 +77,8 @@ async getPostsByLocation(locationId: number) {
                 locationId: true,
                 createdAt: true,
                 wasAnonymous: true,
-                poster:   { select: { displayId: true } },
+                poster:   { select: { displayId: true, deleted: true } },
                 location: { select: { name: true } },
-                _count:   { select: { comments: { where: { deleted: false } } } },
             },
             orderBy: { createdAt: "desc" },
             take: 50,

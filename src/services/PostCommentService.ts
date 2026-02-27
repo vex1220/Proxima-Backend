@@ -35,4 +35,8 @@ export class PostCommentService {
   async getPostCommentsByUser(userId: number) {
     return await postCommentDao.getPostCommentsByUser(userId);
   }
+
+  async getCommentCountsBatch(postIds: number[]): Promise<Record<number, number>> {
+    return await postCommentDao.getCommentCountsBatch(postIds);
+  }
 }

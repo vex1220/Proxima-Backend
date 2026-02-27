@@ -42,6 +42,20 @@ export class PostCommentDao{
         });
     }
 
+    async getCommentCountsBatch(postIds: number[]): Promise<Record<number, number>> {
+        if (postIds.length === 0) return {};
+        const results = await prisma.postComment.groupBy({
+            by: ["postId"],
+            where: { postId: { in: postIds }, deleted: false },
+            _count: { id: true },
+        });
+        const map: Record<number, number> = {};
+        for (const r of results) {
+            map[r.postId] = r._count.id;
+        }
+        return map;
+    }
+
     async getPostCommentsByUser(userId: number) {
         return prisma.postComment.findMany({
             where: {
