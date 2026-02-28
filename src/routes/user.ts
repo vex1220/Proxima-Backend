@@ -12,6 +12,7 @@ import {
   getUserPosts,
   getUserComments,
   toggleAnonymousMode,
+  updateNotificationPreferences,
   muteLocation,
   unmuteLocation,
   getMutedLocations,
@@ -57,6 +58,9 @@ router.get("/blocks", getBlockList);
 
 // Anonymous mode
 router.post("/anonymousMode", toggleAnonymousMode);
+
+// Notification preferences
+router.post("/notification-preferences", updateNotificationPreferences);
 
 // Muted locations
 router.post("/muteLocation", muteLocation);

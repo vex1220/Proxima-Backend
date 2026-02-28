@@ -33,15 +33,17 @@
 // └──────────────────────────────────────────────────────────────────────┘
 // =============================================================================
 
-import { NotificationContext, NotificationPayload } from "./notificationTypes";
+import { NotificationContext } from "./notificationTypes";
 import { getRulesForEvent } from "./notificationRules";
-import {
-  createNotification,
-  hasBeenSent,
-  recordSent,
-} from "./notificationDao";
+import { getNotificationPreferencesDao } from "../dao/userServiceDao";
 import { sendPushToUser } from "./pushService";
 import logger from "../utils/logger";
+
+const NOTIF_PREF_MAP: Record<string, "notifComments" | "notifKarma" | "notifInactiveReminder"> = {
+  NEW_COMMENT: "notifComments",
+  KARMA_MILESTONE: "notifKarma",
+  INACTIVE_REMINDER: "notifInactiveReminder",
+};
 
 /**
  * Main entry point: emit a notification event.
@@ -73,27 +75,17 @@ export async function emitNotification(
           continue; // Rule decided not to fire — move on
         }
 
-        // Step 3: Check deduplication
-        const dedupeKey = rule.dedupeKey(ctx);
-        if (dedupeKey) {
-          const alreadySent = await hasBeenSent(dedupeKey, payload.userId);
-          if (alreadySent) {
-            logger.info(
-              `[Notification] Skipping "${rule.name}" for user ${payload.userId} (already sent: ${dedupeKey})`
-            );
+        // Check if user has disabled this notification type
+        const prefKey = NOTIF_PREF_MAP[payload.type];
+        if (prefKey) {
+          const prefs = await getNotificationPreferencesDao(payload.userId);
+          if (!prefs[prefKey]) {
+            logger.info(`[Notification] Skipping "${rule.name}" for user ${payload.userId} (disabled by user)`);
             continue;
           }
         }
 
-        // Step 4: Save to database (in-app notification log)
-        await createNotification(payload);
-
-        // Step 5: Record dedup key BEFORE sending push (prevent race conditions)
-        if (dedupeKey) {
-          await recordSent(dedupeKey, payload.userId);
-        }
-
-        // Step 6: Send push notification (non-blocking)
+        // Send push notification (non-blocking)
         // We don't await this — push delivery runs in the background.
         sendPushToUser(payload).catch((err) =>
           logger.error(`[Notification] Push failed for rule "${rule.name}":`, err)

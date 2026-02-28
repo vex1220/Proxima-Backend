@@ -44,8 +44,11 @@ model User_Settings {
   userId          Int     @unique
   proximityRadius Int     @default(8047)
   feedRadius      Int     @default(8047)  // 5 miles in metres
-  anonymousMode   Boolean @default(true)
-  user            User?   @relation(fields: [userId], references: [id])
+  anonymousMode         Boolean @default(true)
+  notifComments         Boolean @default(true)
+  notifKarma            Boolean @default(true)
+  notifInactiveReminder Boolean @default(true)
+  user                  User?   @relation(fields: [userId], references: [id])
 }
 
 // ─── Moderation ──────────────────────────────────────────────────────────────

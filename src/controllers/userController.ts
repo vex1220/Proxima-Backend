@@ -11,7 +11,7 @@ import {
   getSuspendedUsers,
 } from "../services/userService";
 import { getIo } from "../websocket/ioInstance";
-import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao } from "../dao/userServiceDao";
+import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao, getNotificationPreferencesDao, updateNotificationPreferencesDao } from "../dao/userServiceDao";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { ProximityMessageService } from "../services/ProximityMessageService";
@@ -100,6 +100,9 @@ export async function userDetails(req: Request, res: Response) {
       isEmailVerified: user.isVerified,
       feedRadius: user.preferences?.feedRadius ?? 3219,
       anonymousMode: user.preferences?.anonymousMode ?? true,
+      notifComments: user.preferences?.notifComments ?? true,
+      notifKarma: user.preferences?.notifKarma ?? true,
+      notifInactiveReminder: user.preferences?.notifInactiveReminder ?? true,
       suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
       suspendedContentPreview: user.suspendedContentPreview ?? null,
     });
@@ -249,6 +252,32 @@ export async function toggleAnonymousMode(req: Request, res: Response) {
     }
     await setAnonymousModeDao(user.id, enabled);
     return res.status(200).json({ anonymousMode: enabled });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+// =============================================================================
+// NOTIFICATION PREFERENCES
+// =============================================================================
+
+export async function updateNotificationPreferences(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const { notifComments, notifKarma, notifInactiveReminder } = req.body;
+    const update: Record<string, boolean> = {};
+    if (typeof notifComments === "boolean") update.notifComments = notifComments;
+    if (typeof notifKarma === "boolean") update.notifKarma = notifKarma;
+    if (typeof notifInactiveReminder === "boolean") update.notifInactiveReminder = notifInactiveReminder;
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ message: "No valid preference fields provided" });
+    }
+
+    await updateNotificationPreferencesDao(user.id, update);
+    return res.status(200).json({ message: "Notification preferences updated" });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

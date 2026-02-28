@@ -198,6 +198,24 @@ export async function setAnonymousModeDao(userId: number, enabled: boolean) {
   });
 }
 
+export async function getNotificationPreferencesDao(userId: number) {
+  const settings = await prisma.user_Settings.findUnique({
+    where: { userId },
+    select: { notifComments: true, notifKarma: true, notifInactiveReminder: true },
+  });
+  return settings ?? { notifComments: true, notifKarma: true, notifInactiveReminder: true };
+}
+
+export async function updateNotificationPreferencesDao(
+  userId: number,
+  prefs: { notifComments?: boolean; notifKarma?: boolean; notifInactiveReminder?: boolean }
+) {
+  return prisma.user_Settings.update({
+    where: { userId },
+    data: prefs,
+  });
+}
+
 export async function getSuspendedUsersDao() {
   return prisma.user.findMany({
     where: {
