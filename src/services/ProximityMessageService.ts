@@ -34,6 +34,7 @@ export class ProximityMessageService extends AbstractMessageService<ProximityMes
     latitude: number,
     longitude: number,
     imageUrl?: string,
+    replyToId?: number,
   ) {
     return proximityMessageDao.createProximityMessageLean(
       senderId,
@@ -41,7 +42,12 @@ export class ProximityMessageService extends AbstractMessageService<ProximityMes
       latitude,
       longitude,
       imageUrl,
+      replyToId,
     );
+  }
+
+  async getReplyDataById(messageId: number) {
+    return proximityMessageDao.getReplyDataById(messageId);
   }
 
   async createProximityMessage(

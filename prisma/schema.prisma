@@ -224,7 +224,10 @@ model ProximityMessage {
   moderationStatus ModerationStatus @default(PENDING) // ← NEW: tracks AI moderation state
   latitude         Float
   longitude        Float
+  replyToId        Int?
   sender           User             @relation(fields: [senderId], references: [id])
+  replyTo          ProximityMessage?  @relation("ProximityReply", fields: [replyToId], references: [id])
+  replies          ProximityMessage[] @relation("ProximityReply")
 
   @@index([senderId])
 }

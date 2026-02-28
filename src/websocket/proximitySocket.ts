@@ -101,7 +101,7 @@ export function setupProximitySocket(
 
   socket.on(
     "sendProximityMessage",
-    async ({ latitude, longitude, content, imageUrl: rawImageUrl }) => {
+    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
         if (!content && !imageUrl) {
@@ -118,9 +118,28 @@ export function setupProximitySocket(
           return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
         }
 
+        // Fetch reply data if replying
+        let replyData: { id: number; content: string; imageUrl: string | null; deleted: boolean; sender: { displayId: string } | null } | null = null;
+        if (replyToId != null) {
+          replyData = await proximityMessageService.getReplyDataById(replyToId);
+          if (!replyData) {
+            socket.emit("error", "The message you are replying to does not exist");
+            return;
+          }
+        }
+
         const recipientIds = [user.id, ...cachedMutualUserIds];
         const wasAnonymous = user.preferences?.anonymousMode ?? true;
         const tempId = Date.now();
+
+        const replyTo = replyData
+          ? {
+              id: replyData.id,
+              content: replyData.deleted ? "Message has been deleted" : replyData.content,
+              imageUrl: replyData.deleted ? null : replyData.imageUrl,
+              senderDisplayId: replyData.sender?.displayId ?? "Unknown",
+            }
+          : null;
 
         const messageToSend = {
           content,
@@ -130,6 +149,7 @@ export function setupProximitySocket(
           messageId: tempId,
           id: tempId,
           userId: user.id,
+          replyTo,
         };
 
         // Broadcast immediately — before the DB write
@@ -145,6 +165,7 @@ export function setupProximitySocket(
             latitude,
             longitude,
             imageUrl,
+            replyToId ?? undefined,
           );
           recipientIds.forEach((id) => {
             io.to(`user:${id}`).emit("proximityMessageIdAssigned", { tempId, realId: message.id });

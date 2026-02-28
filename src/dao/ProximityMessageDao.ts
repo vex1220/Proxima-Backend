@@ -68,6 +68,7 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
     latitude: number,
     longitude: number,
     imageUrl?: string,
+    replyToId?: number,
   ) {
     return prisma.proximityMessage.create({
       data: {
@@ -76,6 +77,20 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
         imageUrl: imageUrl ?? null,
         latitude,
         longitude,
+        replyToId: replyToId ?? null,
+      },
+    });
+  }
+
+  async getReplyDataById(messageId: number) {
+    return prisma.proximityMessage.findUnique({
+      where: { id: messageId },
+      select: {
+        id: true,
+        content: true,
+        imageUrl: true,
+        deleted: true,
+        sender: { select: { displayId: true } },
       },
     });
   }

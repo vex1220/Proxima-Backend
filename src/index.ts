@@ -32,6 +32,7 @@ import reportRoutes from "./routes/report";
 import moderationRoutes from "./routes/moderation";
 import notificationRoutes from "./routes/notification";
 import { startNotificationScheduler } from "./notifications";
+import { startProximityMessageCleanup } from "./jobs/proximityMessageCleanup";
 
 dotenv.config();
 
@@ -130,6 +131,10 @@ if (process.env.OPENAI_API_KEY) {
 // Starts the background scheduler that checks for inactive users and sends
 // reminder push notifications. Runs in the same process — no extra service.
 startNotificationScheduler();
+
+// ── Proximity Message Cleanup ─────────────────────────────────────────────────
+// Deletes proximity messages older than 48 hours. Runs hourly.
+startProximityMessageCleanup();
 
 if (require.main === module) {
   httpServer.listen(PORT, () => {
