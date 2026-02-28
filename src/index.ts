@@ -51,7 +51,7 @@ const corsOptions = {
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 750,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
