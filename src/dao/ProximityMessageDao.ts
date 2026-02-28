@@ -35,6 +35,12 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
       .then((result) => result.count);
   }
 
+  async getMessageCountByUser(senderId: number): Promise<number> {
+    return prisma.proximityMessage.count({
+      where: { senderId },
+    });
+  }
+
   async createProximityMessage(
     senderId: number,
     content: string,

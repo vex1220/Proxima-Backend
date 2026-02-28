@@ -24,6 +24,10 @@ export class ProximityMessageService extends AbstractMessageService<ProximityMes
     return proximityMessageDao.deleteMessageByUser(senderId);
   }
 
+  async getMessageCountByUser(userId: number): Promise<number> {
+    return proximityMessageDao.getMessageCountByUser(userId);
+  }
+
   async createProximityMessage(
     senderId: number,
     content: string,

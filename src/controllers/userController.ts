@@ -14,10 +14,12 @@ import { getIo } from "../websocket/ioInstance";
 import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao } from "../dao/userServiceDao";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
+import { ProximityMessageService } from "../services/ProximityMessageService";
 import { PostDao } from "../dao/PostDao";
 import { PostCommentService } from "../services/PostCommentService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
+const proximityMessageService = new ProximityMessageService();
 const postDao = new PostDao();
 const postCommentService = new PostCommentService();
 
@@ -116,8 +118,12 @@ export async function userStatistics(req: Request, res: Response) {
         .json({ message: "request from user that does not exist" });
     }
 
-    const messageCount = await chatRoomMessageService.getMessageCountByUser(user.id);
-    const userKarma = await getUserKarma(user.id);
+    const [chatCount, proximityCount, userKarma] = await Promise.all([
+      chatRoomMessageService.getMessageCountByUser(user.id),
+      proximityMessageService.getMessageCountByUser(user.id),
+      getUserKarma(user.id),
+    ]);
+    const messageCount = chatCount + proximityCount;
 
     return res.status(200).json({ messageCount, userKarma });
   } catch (error: any) {
