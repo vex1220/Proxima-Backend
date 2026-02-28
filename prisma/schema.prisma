@@ -42,7 +42,7 @@ model User {
 model User_Settings {
   id              Int     @id @default(autoincrement())
   userId          Int     @unique
-  proximityRadius Int     @default(8047)
+  proximityRadius Int     @default(1609)
   feedRadius      Int     @default(8047)  // 5 miles in metres
   anonymousMode         Boolean @default(true)
   notifComments         Boolean @default(true)

@@ -89,7 +89,7 @@ export function setupChatRoomSocket(
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
-      if (!content || content.length > 2000) {
+      if ((!content && !imageUrl) || (content && content.length > 2000)) {
         socket.emit("error", "Message too long");
         return;
       }

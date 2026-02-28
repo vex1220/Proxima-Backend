@@ -46,7 +46,7 @@ export function setupProximitySocket(
       if (now - lastCountCalcTime < COUNT_THROTTLE_MS) return;
       lastCountCalcTime = now;
 
-      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 8047;
+      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1609;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
       const connectedNearbyIds = nearbyUserIds.filter(
@@ -159,7 +159,7 @@ export function setupProximitySocket(
               type: "PROXIMITY_MESSAGE",
               latitude,
               longitude,
-              senderRadius: user.preferences?.proximityRadius ?? 8047,
+              senderRadius: user.preferences?.proximityRadius ?? 1609,
             },
           });
         } catch {

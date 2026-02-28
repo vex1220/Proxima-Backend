@@ -96,7 +96,29 @@ async function workerLoop(workerId: number): Promise<void> {
       const result = await moderateContent(job.text, job.imageUrl);
 
       // ── Step 3: Act on the result ──────────────────────────────────
-      if (result.flagged) {
+      // Use score-based thresholds for hate/harassment/violence so borderline
+      // content (arguments, edgy humour, mild language) doesn't trigger a ban.
+      // Everything else uses OpenAI's default binary flag.
+      const s = result.categoryScores;
+      const shouldReject =
+        // High-confidence hate speech only (raised from OpenAI default ~0.7)
+        (s["hate"] ?? 0) > 0.90 ||
+        (s["hate/threatening"] ?? 0) > 0.85 ||
+        // Raised harassment threshold — banter/arguments won't trigger
+        (s["harassment"] ?? 0) > 0.90 ||
+        (s["harassment/threatening"] ?? 0) > 0.85 ||
+        // Violence: only flag very graphic content
+        (s["violence"] ?? 0) > 0.90 ||
+        (s["violence/graphic"] ?? 0) > 0.85 ||
+        // Sexual content — keep at OpenAI default sensitivity
+        result.categories["sexual"] === true ||
+        result.categories["sexual/minors"] === true ||
+        // Self-harm — keep at default sensitivity
+        result.categories["self-harm"] === true ||
+        result.categories["self-harm/intent"] === true ||
+        result.categories["self-harm/instructions"] === true;
+
+      if (shouldReject) {
         // TOXIC CONTENT → Ghost Delete
         await handleRejection(job);
         logger.warn(
