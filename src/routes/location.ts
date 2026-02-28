@@ -3,7 +3,7 @@ import {
   authenticateToken,
   authenticateAdmin,
 } from "../middleware/authMiddleware";
-import { createLocation, listLocations, locationDetails, getLocationsInRange, getActiveCounts } from "../controllers/locationController"
+import { createLocation, listLocations, locationDetails, getLocationsInRange, getActiveCounts, deleteLocation } from "../controllers/locationController"
 import { LocationType } from "@prisma/client";
 
 const router = Router();
@@ -24,5 +24,6 @@ router.get("/types",(req,res) =>{
 });
 
 router.get("/:locationId",locationDetails);
+router.post("/delete", authenticateAdmin, deleteLocation);
 
 export default router;

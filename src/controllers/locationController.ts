@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { LocationService } from "../services/LocationService";
 import redis from "../utils/setupRedis";
+import { prisma } from "../utils/prisma";
 
 const LOCATIONS_CACHE_KEY = "cache:all_locations";
 
@@ -142,5 +143,18 @@ export async function getActiveCounts(req: Request, res: Response) {
     return res.status(200).json({ counts });
   } catch (error: any) {
     return res.status(500).json({ message: error.message });
+  }
+}
+
+export async function deleteLocation(req: Request, res: Response) {
+  try {
+    const { id } = req.body;
+    if (!id) return res.status(400).json({ message: "Location id is required" });
+
+    await prisma.location.delete({ where: { id } });
+
+    return res.status(200).json({ message: "Location deleted" });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
   }
 }

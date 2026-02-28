@@ -112,7 +112,7 @@ model Post {
   deleted          Boolean          @default(false)
   wasAnonymous     Boolean          @default(false)
   moderationStatus ModerationStatus @default(PENDING)
-  location         Location         @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  location         Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
   poster           User             @relation(fields: [posterId], references: [id])
   comments         PostComment[]
   votes            PostVote[]
@@ -170,7 +170,7 @@ model ChatRoom {
   name       String
   deleted    Boolean           @default(false)
   locationId Int
-  location   Location          @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  location   Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
   messages   ChatRoomMessage[]
 
   @@index([locationId])
