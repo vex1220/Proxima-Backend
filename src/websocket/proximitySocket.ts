@@ -74,16 +74,12 @@ export function setupProximitySocket(
 
       for (const id of mutualUserIds) {
         if (!previousMutualUserIds.has(id)) {
-          // New user entered mutual range
-          socket.emit("proximityUserJoined", { displayId: String(id) });
           io.to(`user:${id}`).emit("proximityUserJoined", { displayId: displayName });
         }
       }
 
       for (const id of previousMutualUserIds) {
         if (!currentSet.has(id)) {
-          // User left mutual range
-          socket.emit("proximityUserLeft", { displayId: String(id) });
           io.to(`user:${id}`).emit("proximityUserLeft", { displayId: displayName });
         }
       }
