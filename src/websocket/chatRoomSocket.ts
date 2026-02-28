@@ -9,7 +9,7 @@ import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
-import { isUserSuspendedById } from "../services/userService";
+import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
 
 function getUserCount(io: Server, roomId: string) {
@@ -89,20 +89,16 @@ export function setupChatRoomSocket(
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
-      if (!content || content.length > 2000){
+      if (!content || content.length > 2000) {
         socket.emit("error", "Message too long");
-        return 
+        return;
       }
 
-      // Block suspended users from sending messages (fresh DB check)
-      const { suspended, until } = await isUserSuspendedById(user.id);
+      const { suspended, until } = await getCachedSuspensionStatus(user.id);
       if (suspended) {
         return socket.emit("suspended", { suspendedUntil: until!.toISOString() });
       }
 
-      // Fast path: if user already passed range check when joining, skip the
-      // full verifyChatRoomAndUserInRange (which does Redis + DB lookups).
-      // Just grab the cached chatroom data instead.
       let chatRoom;
       if (verifiedRooms.has(roomId)) {
         const cached = await getCachedChatRoomWithLocation(roomId);
@@ -113,43 +109,44 @@ export function setupChatRoomSocket(
         verifiedRooms.add(roomId);
       }
 
-      // Run DB write and block-list lookup in parallel — they're independent
-      // and this cuts the block-cache latency off the critical path.
       const wasAnonymous = user.preferences?.anonymousMode ?? true;
 
-      const [message, blockedUserIds] = await Promise.all([
-        chatRoomMessageService.createChatRoomMessage(
-          chatRoom.id,
-          user.id,
-          content,
-          imageUrl,
-          replyToId ?? undefined,
-          wasAnonymous,
-        ),
+      const [replyData, blockedUserIds] = await Promise.all([
+        replyToId != null
+          ? chatRoomMessageService.getReplyDataById(replyToId)
+          : Promise.resolve(null),
         getCachedBlockRelatedUserIds(user.id).then((ids) => new Set(ids)),
       ]);
 
+      if (replyToId != null) {
+        if (!replyData) throw new Error("The message you are replying to does not exist");
+        if (replyData.chatRoomId !== chatRoom.id)
+          throw new Error("Cannot reply to a message in a different chatroom");
+        if (replyData.deleted) throw new Error("Cannot reply to a deleted message");
+      }
+
+      const tempId = Date.now();
       const messageToSend = {
-        ...message,
         chatRoomId: chatRoom.id,
-        content: message.content,
-        imageUrl: message.imageUrl,
-        senderDisplayId: wasAnonymous ? "Anonymous" : message.sender.displayId,
-        timestamp: message.createdAt,
-        messageId: message.id,
+        content,
+        imageUrl: imageUrl ?? null,
+        senderDisplayId: wasAnonymous ? "Anonymous" : user.displayId,
+        timestamp: new Date().toISOString(),
+        messageId: tempId,
+        id: tempId,
         userId: user.id,
-        isReply: message.isReply,
-        replyToId: message.replyToId,
-        replyTo: message.replyTo
+        isReply: replyToId != null,
+        replyToId: replyToId ?? null,
+        replyTo: replyData
           ? {
-              id: message.replyTo.id,
-              content: message.replyTo.deleted
+              id: replyData.id,
+              content: replyData.deleted
                 ? "Message Has Been Deleted"
-                : message.replyTo.content,
-              imageUrl: message.replyTo.deleted
-                ? null
-                : message.replyTo.imageUrl,
-              senderDisplayId: message.replyTo.sender.displayId,
+                : replyData.content,
+              imageUrl: replyData.deleted ? null : replyData.imageUrl,
+              senderDisplayId: replyData.wasAnonymous
+                ? "Anonymous"
+                : replyData.sender.displayId,
             }
           : null,
       };
@@ -160,32 +157,43 @@ export function setupChatRoomSocket(
         socketToUserId[entry.socketId] = Number(uid);
       }
 
-      // Deliver individually, skipping blocked users
+      // Broadcast immediately — before the DB write
       const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));
       if (roomSockets) {
         for (const socketId of roomSockets) {
           const recipientUserId = socketToUserId[socketId];
           if (recipientUserId !== undefined && blockedUserIds.has(recipientUserId)) {
-            continue; // skip — block relationship exists
+            continue;
           }
           io.to(socketId).emit("receiveMessage", messageToSend);
         }
       }
 
-      // ── Enqueue for AI moderation (runs in background) ──────────────
-      // The message is already delivered above (optimistic display).
-      // The worker will call OpenAI and "ghost delete" if flagged.
-      enqueueModerationJob({
-        contentType: "CHAT_MESSAGE",
-        contentId: message.id,
-        userId: user.id,
-        text: content,
-        imageUrl: message.imageUrl ?? undefined,
-        socketMeta: {
-          type: "CHAT_MESSAGE",
-          chatRoomId: chatRoom.id,
-        },
-      });
+      // Persist asynchronously — announce real ID when done
+      try {
+        const message = await chatRoomMessageService.createFast(
+          chatRoom.id,
+          user.id,
+          content,
+          imageUrl,
+          replyToId ?? undefined,
+          wasAnonymous,
+        );
+        io.to(String(chatRoom.id)).emit("messageIdAssigned", { tempId, realId: message.id });
+        enqueueModerationJob({
+          contentType: "CHAT_MESSAGE",
+          contentId: message.id,
+          userId: user.id,
+          text: content,
+          imageUrl: message.imageUrl ?? undefined,
+          socketMeta: {
+            type: "CHAT_MESSAGE",
+            chatRoomId: chatRoom.id,
+          },
+        });
+      } catch {
+        io.to(`user:${user.id}`).emit("messageFailed", { tempId });
+      }
     } catch (error: any) {
       socket.emit("error", error.message || "An unexpected error has occurred");
     }

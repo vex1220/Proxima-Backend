@@ -82,6 +82,42 @@ async getMessageCountByUser(senderId: number): Promise<number> {
   }
 
 
+  async createChatRoomMessageLean(
+    chatRoomId: number,
+    senderId: number,
+    content: string,
+    imageUrl?: string,
+    replyToId?: number,
+    wasAnonymous?: boolean,
+  ) {
+    return prisma.chatRoomMessage.create({
+      data: {
+        chatRoomId,
+        senderId,
+        content,
+        imageUrl: imageUrl ?? null,
+        isReply: replyToId != null,
+        replyToId: replyToId ?? null,
+        wasAnonymous: wasAnonymous ?? false,
+      },
+    });
+  }
+
+  async getReplyDataById(replyToId: number) {
+    return prisma.chatRoomMessage.findUnique({
+      where: { id: replyToId },
+      select: {
+        id: true,
+        content: true,
+        deleted: true,
+        imageUrl: true,
+        wasAnonymous: true,
+        chatRoomId: true,
+        sender: { select: { displayId: true } },
+      },
+    });
+  }
+
   async deleteChatRoomMessagesByChatroom(chatroomId: number) {
     return prisma.chatRoomMessage.updateMany({
       where: { chatRoomId: chatroomId },

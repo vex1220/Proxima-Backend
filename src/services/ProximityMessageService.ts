@@ -28,6 +28,22 @@ export class ProximityMessageService extends AbstractMessageService<ProximityMes
     return proximityMessageDao.getMessageCountByUser(userId);
   }
 
+  async createFast(
+    senderId: number,
+    content: string,
+    latitude: number,
+    longitude: number,
+    imageUrl?: string,
+  ) {
+    return proximityMessageDao.createProximityMessageLean(
+      senderId,
+      content,
+      latitude,
+      longitude,
+      imageUrl,
+    );
+  }
+
   async createProximityMessage(
     senderId: number,
     content: string,

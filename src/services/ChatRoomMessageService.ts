@@ -56,6 +56,28 @@ export class ChatRoomMessageService extends AbstractMessageService<ChatRoomMessa
     );
   }
 
+  async createFast(
+    chatRoomId: number,
+    senderId: number,
+    content: string,
+    imageUrl?: string,
+    replyToId?: number,
+    wasAnonymous?: boolean,
+  ) {
+    return chatRoomMessageDao.createChatRoomMessageLean(
+      chatRoomId,
+      senderId,
+      content,
+      imageUrl,
+      replyToId,
+      wasAnonymous,
+    );
+  }
+
+  async getReplyDataById(replyToId: number) {
+    return chatRoomMessageDao.getReplyDataById(replyToId);
+  }
+
   async deleteChatRoomMessagesByChatroom(chatroomId: number) {
     return await chatRoomMessageDao.deleteChatRoomMessagesByChatroom(
       chatroomId,

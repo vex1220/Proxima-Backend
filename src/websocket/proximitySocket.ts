@@ -1,7 +1,7 @@
 import { Server, Socket } from "socket.io";
 import {
-  getNearbyUsers,
   saveUserLocation,
+  getNearbyUsers,
   filterMutuallyNearbyUsers,
   removeUserLocation,
 } from "../utils/redisUserLocation";
@@ -9,7 +9,7 @@ import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
-import { isUserSuspendedById } from "../services/userService";
+import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
 
 const proximityMessageService = new ProximityMessageService();
@@ -113,82 +113,58 @@ export function setupProximitySocket(
           return;
         }
 
-        const { suspended, until: suspendedUntil } = await isUserSuspendedById(user.id);
+        const { suspended, until: suspendedUntil } = await getCachedSuspensionStatus(user.id);
         if (suspended) {
           return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
         }
 
-        const senderRadius = user.preferences?.proximityRadius ?? 8047;
-        const currentUserLocation = { latitude, longitude };
+        const recipientIds = [user.id, ...cachedMutualUserIds];
+        const wasAnonymous = user.preferences?.anonymousMode ?? true;
+        const tempId = Date.now();
 
-        const [message, broadcastPrep] = await Promise.all([
-          proximityMessageService.createProximityMessage(
+        const messageToSend = {
+          content,
+          imageUrl: imageUrl ?? null,
+          senderDisplayId: wasAnonymous ? "Anonymous" : user.displayId,
+          timestamp: new Date().toISOString(),
+          messageId: tempId,
+          id: tempId,
+          userId: user.id,
+        };
+
+        // Broadcast immediately — before the DB write
+        recipientIds.forEach((id) => {
+          io.to(`user:${id}`).emit("receiveProximityMessage", messageToSend);
+        });
+
+        // Persist asynchronously — announce real ID when done
+        try {
+          const message = await proximityMessageService.createFast(
             user.id,
             content,
             latitude,
             longitude,
             imageUrl,
-          ),
-          (async () => {
-            const nearbyUsers = await getNearbyUsers(
-              currentUserLocation.latitude,
-              currentUserLocation.longitude,
-              senderRadius,
-            );
-
-            if (!nearbyUsers || nearbyUsers.length === 0) return null;
-
-            const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
-            const visibleNearbyUsers = nearbyUsers.filter(
-              (id) => !blockedUserIds.has(id)
-            );
-
-            const usersToBroadcastTo = await filterMutuallyNearbyUsers(
-              user.id,
-              currentUserLocation,
-              visibleNearbyUsers,
-              userSocketMap,
-            );
-
-            return usersToBroadcastTo;
-          })(),
-        ]);
-
-        if (!message) {
-          return socket.emit("error", "Failed to create proximity message");
+          );
+          recipientIds.forEach((id) => {
+            io.to(`user:${id}`).emit("proximityMessageIdAssigned", { tempId, realId: message.id });
+          });
+          enqueueModerationJob({
+            contentType: "PROXIMITY_MESSAGE",
+            contentId: message.id,
+            userId: user.id,
+            text: content,
+            imageUrl: message.imageUrl ?? undefined,
+            socketMeta: {
+              type: "PROXIMITY_MESSAGE",
+              latitude,
+              longitude,
+              senderRadius: user.preferences?.proximityRadius ?? 8047,
+            },
+          });
+        } catch {
+          io.to(`user:${user.id}`).emit("proximityMessageFailed", { tempId });
         }
-
-        if (!broadcastPrep) {
-          return socket.emit("error", "no one nearby");
-        }
-
-        const wasAnonymous = user.preferences?.anonymousMode ?? true;
-        const messageToSend = {
-          ...message,
-          content: message.content,
-          senderDisplayId: wasAnonymous ? "Anonymous" : message.sender.displayId,
-          timestamp: message.createdAt,
-          messageId: message.id,
-          userId: user.id,
-        };
-
-        broadcastPrep.forEach((userId) => {
-          io.to(`user:${userId}`).emit("receiveProximityMessage", messageToSend);
-        });
-
-        enqueueModerationJob({
-          contentType: "PROXIMITY_MESSAGE",
-          contentId: message.id,
-          userId: user.id,
-          text: content,
-          imageUrl: message.imageUrl ?? undefined,
-          socketMeta: {
-            type: "PROXIMITY_MESSAGE",
-            latitude,
-            longitude,
-            senderRadius,
-          },
-        });
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
         socket.emit("error", "An unexpected error has occurred");

@@ -1,4 +1,5 @@
 import { prisma } from "../utils/prisma";
+import redis from "../utils/setupRedis";
 
 export async function createUserDao(
   email: string,
@@ -159,13 +160,15 @@ export async function setUserVerifiedDao(id: number) {
 // ─── Suspension ───────────────────────────────────────────────────────────────
 
 export async function suspendUserDao(id: number, until: Date, contentPreview?: string | null) {
-  return prisma.user.update({
+  const user = await prisma.user.update({
     where: { id },
     data: {
       suspendedUntil: until,
       suspendedContentPreview: contentPreview ?? null,
     },
   });
+  await redis.set(`suspension:status:${id}`, until.toISOString(), "EX", 15);
+  return user;
 }
 
 export async function checkUserSuspendedById(userId: number): Promise<{ suspended: boolean; until: Date | null }> {
@@ -180,10 +183,12 @@ export async function checkUserSuspendedById(userId: number): Promise<{ suspende
 }
 
 export async function unsuspendUserDao(id: number) {
-  return prisma.user.update({
+  const user = await prisma.user.update({
     where: { id },
     data: { suspendedUntil: null, suspendedContentPreview: null },
   });
+  await redis.del(`suspension:status:${id}`);
+  return user;
 }
 
 export async function setAnonymousModeDao(userId: number, enabled: boolean) {

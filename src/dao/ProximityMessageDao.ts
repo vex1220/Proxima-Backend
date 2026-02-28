@@ -61,4 +61,22 @@ export class ProximityMessageDao extends AbstractMessageDao<ProximityMessage | n
       },
     });
   }
+
+  async createProximityMessageLean(
+    senderId: number,
+    content: string,
+    latitude: number,
+    longitude: number,
+    imageUrl?: string,
+  ) {
+    return prisma.proximityMessage.create({
+      data: {
+        senderId,
+        content,
+        imageUrl: imageUrl ?? null,
+        latitude,
+        longitude,
+      },
+    });
+  }
 }
