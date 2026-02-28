@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { LocationService } from "../services/LocationService";
 import redis from "../utils/setupRedis";
-import { getNearbyUsers } from "../utils/redisUserLocation";
 
 const LOCATIONS_CACHE_KEY = "cache:all_locations";
 
