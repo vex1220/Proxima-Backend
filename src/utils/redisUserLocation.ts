@@ -94,7 +94,7 @@ export async function filterMutuallyNearbyUsers(
       latitude: Number(pos[0][1]),
       longitude: Number(pos[0][0]),
     };
-    const nearbyUserRadius = userSocketMap[id]?.proximityRadius ?? 1600;
+    const nearbyUserRadius = userSocketMap[id]?.proximityRadius ?? 8047;
 
     const distance = getDistance(
       { latitude: nearbyUserLocation.latitude, longitude: nearbyUserLocation.longitude },
@@ -159,7 +159,7 @@ export async function getNearbyUsersCount(
       latitude: Number(pos[0][1]),
       longitude: Number(pos[0][0]),
     };
-    const otherRadius = userSocketMap[id]?.proximityRadius ?? 1600;
+    const otherRadius = userSocketMap[id]?.proximityRadius ?? 8047;
 
     const distance = getDistance(
       { latitude: location.latitude, longitude: location.longitude },

@@ -9,7 +9,7 @@ import redis from "../utils/setupRedis";
 const locationDao = new LocationDao();
 const postService = new PostService();
 
-const DEFAULT_FEED_RADIUS_M = 3219; // 2 miles
+const DEFAULT_FEED_RADIUS_M = 8047; // 5 miles
 
 // Cache the full location list to avoid hitting Postgres on every feed request.
 // Locations are created/deleted infrequently, so a 2-minute TTL is safe.

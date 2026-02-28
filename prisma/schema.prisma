@@ -42,8 +42,8 @@ model User {
 model User_Settings {
   id              Int     @id @default(autoincrement())
   userId          Int     @unique
-  proximityRadius Int     @default(1600)
-  feedRadius      Int     @default(3219)  // 2 miles in metres
+  proximityRadius Int     @default(8047)
+  feedRadius      Int     @default(8047)  // 5 miles in metres
   anonymousMode   Boolean @default(true)
   user            User?   @relation(fields: [userId], references: [id])
 }

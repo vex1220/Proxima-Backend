@@ -46,7 +46,7 @@ export function setupProximitySocket(
       if (now - lastCountCalcTime < COUNT_THROTTLE_MS) return;
       lastCountCalcTime = now;
 
-      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 1600;
+      const senderRadius = userSocketMap[user.id]?.proximityRadius ?? 8047;
       const nearbyUserIds = await getNearbyUsers(latitude, longitude, senderRadius);
 
       const connectedNearbyIds = nearbyUserIds.filter(
@@ -118,7 +118,7 @@ export function setupProximitySocket(
           return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
         }
 
-        const senderRadius = user.preferences?.proximityRadius ?? 500;
+        const senderRadius = user.preferences?.proximityRadius ?? 8047;
         const currentUserLocation = { latitude, longitude };
 
         const [message, broadcastPrep] = await Promise.all([

@@ -48,7 +48,7 @@ export function setupSocket(io: Server) {
 
     userSocketMap[user.id] = {
       socketId: socket.id,
-      proximityRadius: user.preferences?.proximityRadius ?? 1600,
+      proximityRadius: user.preferences?.proximityRadius ?? 8047,
     };
 
     // Join a personal room so the moderation worker can emit targeted events
