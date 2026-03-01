@@ -28,6 +28,10 @@ export function setupProximitySocket(
   let lastCountCalcTime = 0;
   const COUNT_THROTTLE_MS = 10_000;
 
+  let cachedSuspension: { suspended: boolean; until: Date | null } | null = null;
+  let suspensionCachedAt = 0;
+  const SUSPENSION_CACHE_TTL = 30_000;
+
   // Cached mutual user IDs — refreshed every 10s by updateLocation.
   // The proximityTyping handler reads from this instead of hitting Redis.
   let cachedMutualUserIds: number[] = [];
@@ -113,9 +117,13 @@ export function setupProximitySocket(
           return;
         }
 
-        const { suspended, until: suspendedUntil } = await getCachedSuspensionStatus(user.id);
-        if (suspended) {
-          return socket.emit("suspended", { suspendedUntil: suspendedUntil!.toISOString() });
+        const now = Date.now();
+        if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
+          cachedSuspension = await getCachedSuspensionStatus(user.id);
+          suspensionCachedAt = now;
+        }
+        if (cachedSuspension.suspended) {
+          return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
         }
 
         // Fetch reply data if replying

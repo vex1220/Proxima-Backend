@@ -110,6 +110,7 @@ const io = new Server(httpServer, {
     methods: ["GET", "POST"],
     credentials: true,
   },
+  transports: ["websocket"],
 });
 setIo(io);
 setupSocket(io);

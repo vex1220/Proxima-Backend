@@ -33,6 +33,14 @@ export function setupChatRoomSocket(
   // Redis + DB lookups on every single message send.
   const verifiedRooms = new Set<number>();
 
+  // Cache suspension status in-memory for the lifetime of this socket
+  // connection to avoid a Redis round-trip on every message send. Refreshed
+  // every 30 seconds in case the status changes mid-session.
+  let cachedSuspension: { suspended: boolean; until: Date | null } | null = null;
+  let suspensionCachedAt = 0;
+  const SUSPENSION_CACHE_TTL = 30_000;
+
+
   socket.on("joinRoom", async (roomId: number) => {
     try {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
@@ -94,9 +102,13 @@ export function setupChatRoomSocket(
         return;
       }
 
-      const { suspended, until } = await getCachedSuspensionStatus(user.id);
-      if (suspended) {
-        return socket.emit("suspended", { suspendedUntil: until!.toISOString() });
+      const now = Date.now();
+      if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
+        cachedSuspension = await getCachedSuspensionStatus(user.id);
+        suspensionCachedAt = now;
+      }
+      if (cachedSuspension.suspended) {
+        return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
       }
 
       let chatRoom;
