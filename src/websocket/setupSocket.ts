@@ -5,6 +5,8 @@ import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
 import { removeUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
+import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
+import { blockEvents } from "../events/blockEvents";
 
 const userSocketMap: {
   [userId: number]: {
@@ -56,11 +58,24 @@ export function setupSocket(io: Server) {
 
     console.log(`User ${user.displayId} connected via WebSocket`);
 
-    // Both socket handlers now receive the userSocketMap for block filtering
-    setupChatRoomSocket(io, socket, user, userSocketMap);
-    setupProximitySocket(io, socket, user, userSocketMap);
+    // Per-connection block list cache — shared by chat and proximity handlers.
+    // Refreshed immediately via blockEvents when a block/unblock happens.
+    const blockedUserIds = { set: new Set<number>() };
+    getCachedBlockRelatedUserIds(user.id).then((ids) => {
+      blockedUserIds.set = new Set(ids);
+    });
+    const refreshBlockList = () => {
+      getCachedBlockRelatedUserIds(user.id).then((ids) => {
+        blockedUserIds.set = new Set(ids);
+      });
+    };
+    blockEvents.on(`changed:${user.id}`, refreshBlockList);
+
+    setupChatRoomSocket(io, socket, user, userSocketMap, blockedUserIds);
+    setupProximitySocket(io, socket, user, userSocketMap, blockedUserIds);
 
     socket.on("disconnect", () => {
+      blockEvents.off(`changed:${user.id}`, refreshBlockList);
       delete userSocketMap[user.id];
       clearSession(user.id).catch(() => {});
       console.log(`User ${user.displayId} disconnected`);

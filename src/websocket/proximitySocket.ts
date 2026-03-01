@@ -8,7 +8,6 @@ import {
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
-import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
 
@@ -24,6 +23,7 @@ export function setupProximitySocket(
       proximityRadius: number;
     };
   },
+  blockedUserIds: { set: Set<number> },
 ) {
   let lastCountCalcTime = 0;
   const COUNT_THROTTLE_MS = 10_000;
@@ -57,9 +57,8 @@ export function setupProximitySocket(
         (id) => id !== user.id && userSocketMap[id] != null
       );
 
-      const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
       const visibleNearbyUserIds = connectedNearbyIds.filter(
-        (id) => !blockedUserIds.has(id)
+        (id) => !blockedUserIds.set.has(id)
       );
 
       const mutualUserIds = await filterMutuallyNearbyUsers(
@@ -105,7 +104,7 @@ export function setupProximitySocket(
 
   socket.on(
     "sendProximityMessage",
-    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId }) => {
+    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId, tempId: clientTempId }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
         if (!content && !imageUrl) {
@@ -158,6 +157,7 @@ export function setupProximitySocket(
           id: tempId,
           userId: user.id,
           replyTo,
+          tempId: clientTempId ?? undefined,
         };
 
         // Broadcast immediately — before the DB write

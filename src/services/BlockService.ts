@@ -8,6 +8,7 @@ import {
   getBlockListDao,
   invalidateCachedBlockList,
 } from "../dao/BlockDao";
+import { blockEvents } from "../events/blockEvents";
 
 export class BlockService {
   async blockUser(blockerId: number, blockedId: number) {
@@ -19,11 +20,12 @@ export class BlockService {
       throw new Error("User is already blocked");
     }
     const result = await blockUserDao(blockerId, blockedId);
-    // Invalidate cache for both users — their visible user sets just changed
     await Promise.all([
       invalidateCachedBlockList(blockerId),
       invalidateCachedBlockList(blockedId),
     ]);
+    blockEvents.emit(`changed:${blockerId}`);
+    blockEvents.emit(`changed:${blockedId}`);
     return result;
   }
 
@@ -37,6 +39,8 @@ export class BlockService {
       invalidateCachedBlockList(blockerId),
       invalidateCachedBlockList(blockedId),
     ]);
+    blockEvents.emit(`changed:${blockerId}`);
+    blockEvents.emit(`changed:${blockedId}`);
     return result;
   }
 
