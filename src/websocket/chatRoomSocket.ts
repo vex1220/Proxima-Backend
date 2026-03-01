@@ -19,6 +19,12 @@ function getUserCount(io: Server, roomId: string) {
 const chatRoomMessageService = new ChatRoomMessageService();
 const voteService = new VoteService(VoteModel.ChatRoomMessageVote);
 
+let tempIdCounter = 0;
+function nextTempId(): number {
+  tempIdCounter = (tempIdCounter + 1) % 2_000_000_000;
+  return tempIdCounter;
+}
+
 export function setupChatRoomSocket(
   io: Server,
   socket: Socket,
@@ -136,7 +142,7 @@ export function setupChatRoomSocket(
         if (replyData.deleted) throw new Error("Cannot reply to a deleted message");
       }
 
-      const tempId = Date.now();
+      const tempId = nextTempId();
       const messageToSend = {
         chatRoomId: chatRoom.id,
         content,

@@ -13,6 +13,12 @@ import { enqueueModerationJob } from "../moderation";
 
 const proximityMessageService = new ProximityMessageService();
 
+let tempIdCounter = 0;
+function nextTempId(): number {
+  tempIdCounter = (tempIdCounter + 1) % 2_000_000_000;
+  return tempIdCounter;
+}
+
 export function setupProximitySocket(
   io: Server,
   socket: Socket,
@@ -137,7 +143,7 @@ export function setupProximitySocket(
 
         const recipientIds = [user.id, ...cachedMutualUserIds];
         const wasAnonymous = user.preferences?.anonymousMode ?? true;
-        const tempId = Date.now();
+        const tempId = nextTempId();
 
         const replyTo = replyData
           ? {
