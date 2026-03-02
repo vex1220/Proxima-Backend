@@ -34,6 +34,7 @@ import notificationRoutes from "./routes/notification";
 import { startNotificationScheduler } from "./notifications";
 import { startProximityMessageCleanup } from "./jobs/proximityMessageCleanup";
 import adminRoutes from "./routes/admin";
+import { prisma } from "./utils/prisma";
 
 dotenv.config();
 
@@ -140,6 +141,12 @@ startNotificationScheduler();
 startProximityMessageCleanup();
 
 if (require.main === module) {
+  prisma.$connect().then(() => {
+    logger.info("Prisma connection pool warmed");
+  }).catch((err) => {
+    logger.error("Prisma failed to connect on startup:", err);
+  });
+
   httpServer.listen(PORT, () => {
     logger.info(`Server running on http://localhost:${PORT}`);
   });
