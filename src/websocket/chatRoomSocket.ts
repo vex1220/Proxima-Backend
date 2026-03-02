@@ -120,19 +120,14 @@ export function setupChatRoomSocket(
 
       const wasAnonymous = user.preferences?.anonymousMode ?? true;
 
-      const chatRoom = await (verifiedRooms.has(roomId)
-        ? getCachedChatRoomWithLocation(roomId).then((c) => {
-            if (!c?.chatRoom) throw new Error("Chat room not found");
-            return c.chatRoom;
-          })
-        : verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin).then((cr) => {
-            verifiedRooms.add(roomId);
-            return cr;
-          }));
+      if (!verifiedRooms.has(roomId)) {
+        await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
+        verifiedRooms.add(roomId);
+      }
 
       const tempId = nextTempId();
       const messageToSend = {
-        chatRoomId: chatRoom.id,
+        chatRoomId: roomId,
         content,
         imageUrl: imageUrl ?? null,
         senderDisplayId: wasAnonymous ? "Anonymous" : user.displayId,
@@ -153,7 +148,7 @@ export function setupChatRoomSocket(
       };
 
       // Broadcast immediately — before the DB write
-      const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));
+      const roomSockets = io.sockets.adapter.rooms.get(String(roomId));
       if (roomSockets) {
         for (const socketId of roomSockets) {
           const recipientUserId = socketToUserIdMap.get(socketId);
@@ -168,7 +163,7 @@ export function setupChatRoomSocket(
       enqueueMessageWrite({
         type: "CHAT_MESSAGE",
         tempId,
-        chatRoomId: chatRoom.id,
+        chatRoomId: roomId,
         userId: user.id,
         content,
         imageUrl,
