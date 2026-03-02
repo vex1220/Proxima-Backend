@@ -9,22 +9,68 @@ import redis from "./setupRedis";
 const chatRoomMessageService = new ChatRoomMessageService();
 const locationDao = new LocationDao();
 
-const CHATROOM_CACHE_TTL = 300; // 5 minutes — chatroom/location data rarely changes
+const CHATROOM_CACHE_TTL = 300; // 5 minutes in seconds — for Redis
+const CHATROOM_CACHE_TTL_MS = 300_000; // 5 minutes in ms — for in-process cache
+const CHATROOM_CACHE_MAX = 500;
 
 function chatRoomCacheKey(roomId: number) {
   return `cache:chatroom:${roomId}`;
 }
 
+// ── In-process LRU cache ──────────────────────────────────────────────────────
+// Map preserves insertion order; we re-insert on access to maintain LRU order,
+// and evict the oldest entry (first key) when the cap is reached.
+
+interface LocalCacheEntry {
+  payload: { chatRoom: any; location: any };
+  expiresAt: number;
+}
+
+const localCache = new Map<number, LocalCacheEntry>();
+
+function localGet(roomId: number): { chatRoom: any; location: any } | null {
+  const entry = localCache.get(roomId);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    localCache.delete(roomId);
+    return null;
+  }
+  // Move to end to mark as recently used
+  localCache.delete(roomId);
+  localCache.set(roomId, entry);
+  return entry.payload;
+}
+
+function localSet(roomId: number, payload: { chatRoom: any; location: any }): void {
+  if (localCache.size >= CHATROOM_CACHE_MAX) {
+    localCache.delete(localCache.keys().next().value);
+  }
+  localCache.set(roomId, { payload, expiresAt: Date.now() + CHATROOM_CACHE_TTL_MS });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export async function getCachedChatRoomWithLocation(roomId: number) {
+  // 1. In-process cache — zero network hops on hit
+  const local = localGet(roomId);
+  if (local) return local;
+
+  // 2. Redis fallback — handles cold starts after a server restart
   const key = chatRoomCacheKey(roomId);
   const cached = await redis.get(key);
-  if (cached) return JSON.parse(cached);
+  if (cached) {
+    const payload = JSON.parse(cached);
+    localSet(roomId, payload);
+    return payload;
+  }
 
+  // 3. DB — populate both caches
   const chatRoom = await getChatRoomById(roomId);
   if (!chatRoom) return null;
 
   const location = await locationDao.getLocationById(chatRoom.locationId);
   const payload = { chatRoom, location };
+  localSet(roomId, payload);
   await redis.setex(key, CHATROOM_CACHE_TTL, JSON.stringify(payload));
   return payload;
 }

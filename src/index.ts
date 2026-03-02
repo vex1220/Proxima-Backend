@@ -33,6 +33,7 @@ import moderationRoutes from "./routes/moderation";
 import notificationRoutes from "./routes/notification";
 import { startNotificationScheduler } from "./notifications";
 import { startProximityMessageCleanup } from "./jobs/proximityMessageCleanup";
+import { startMessageWriteWorker } from "./jobs/messageWriteWorker";
 
 dotenv.config();
 
@@ -114,6 +115,7 @@ const io = new Server(httpServer, {
 });
 setIo(io);
 setupSocket(io);
+startMessageWriteWorker(io);
 
 // ── Moderation Worker ─────────────────────────────────────────────────────────
 // Start the background moderation worker. It receives the Socket.io server

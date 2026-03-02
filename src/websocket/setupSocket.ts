@@ -15,6 +15,10 @@ const userSocketMap: {
   };
 } = {};
 
+// Reverse index: socketId → userId — kept in sync on connect/disconnect
+// so the sendMessage broadcast loop never has to rebuild it per message.
+const socketToUserIdMap = new Map<string, number>();
+
 export function setupSocket(io: Server) {
   io.use(async (socket, next) => {
     try {
@@ -52,6 +56,7 @@ export function setupSocket(io: Server) {
       socketId: socket.id,
       proximityRadius: user.preferences?.proximityRadius ?? 1609,
     };
+    socketToUserIdMap.set(socket.id, user.id);
 
     // Join a personal room so the moderation worker can emit targeted events
     socket.join(`user:${user.id}`);
@@ -71,12 +76,13 @@ export function setupSocket(io: Server) {
     };
     blockEvents.on(`changed:${user.id}`, refreshBlockList);
 
-    setupChatRoomSocket(io, socket, user, userSocketMap, blockedUserIds);
+    setupChatRoomSocket(io, socket, user, userSocketMap, blockedUserIds, socketToUserIdMap);
     setupProximitySocket(io, socket, user, userSocketMap, blockedUserIds);
 
     socket.on("disconnect", () => {
       blockEvents.off(`changed:${user.id}`, refreshBlockList);
       delete userSocketMap[user.id];
+      socketToUserIdMap.delete(socket.id);
       clearSession(user.id).catch(() => {});
       console.log(`User ${user.displayId} disconnected`);
     });

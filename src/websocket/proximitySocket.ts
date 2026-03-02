@@ -9,7 +9,7 @@ import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
-import { enqueueModerationJob } from "../moderation";
+import { enqueueMessageWrite } from "../jobs/messageWriteQueue";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -171,35 +171,21 @@ export function setupProximitySocket(
           io.to(`user:${id}`).emit("receiveProximityMessage", messageToSend);
         });
 
-        // Persist asynchronously — announce real ID when done
-        try {
-          const message = await proximityMessageService.createFast(
-            user.id,
-            content,
-            latitude,
-            longitude,
-            imageUrl,
-            replyToId ?? undefined,
-          );
-          recipientIds.forEach((id) => {
-            io.to(`user:${id}`).emit("proximityMessageIdAssigned", { tempId, realId: message.id });
-          });
-          enqueueModerationJob({
-            contentType: "PROXIMITY_MESSAGE",
-            contentId: message.id,
-            userId: user.id,
-            text: content,
-            imageUrl: message.imageUrl ?? undefined,
-            socketMeta: {
-              type: "PROXIMITY_MESSAGE",
-              latitude,
-              longitude,
-              senderRadius: user.preferences?.proximityRadius ?? 1609,
-            },
-          });
-        } catch {
+        // Persist via background queue — worker emits proximityMessageIdAssigned when done
+        enqueueMessageWrite({
+          type: "PROXIMITY_MESSAGE",
+          tempId,
+          userId: user.id,
+          content,
+          imageUrl,
+          latitude,
+          longitude,
+          replyToId: replyToId ?? undefined,
+          recipientIds,
+          senderRadius: user.preferences?.proximityRadius ?? 1609,
+        }).catch(() => {
           io.to(`user:${user.id}`).emit("proximityMessageFailed", { tempId });
-        }
+        });
       } catch (error: any) {
         console.error("[sendProximityMessage] Error:", error);
         socket.emit("error", "An unexpected error has occurred");

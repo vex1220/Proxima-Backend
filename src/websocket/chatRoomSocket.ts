@@ -9,7 +9,7 @@ import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
-import { enqueueModerationJob } from "../moderation";
+import { enqueueMessageWrite } from "../jobs/messageWriteQueue";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -31,6 +31,7 @@ export function setupChatRoomSocket(
   user: UserWithPreferences,
   userSocketMap: { [userId: number]: { socketId: string; proximityRadius: number } },
   blockedUserIds: { set: Set<number> },
+  socketToUserIdMap: Map<string, number>,
 ) {
   // Track rooms where this socket has already passed range verification.
   // Once a user successfully joins a room, we skip the full
@@ -99,7 +100,7 @@ export function setupChatRoomSocket(
     });
   });
 
-  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId, tempId: clientTempId }) => {
+  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId, replyPreview, tempId: clientTempId }) => {
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
@@ -119,8 +120,7 @@ export function setupChatRoomSocket(
 
       const wasAnonymous = user.preferences?.anonymousMode ?? true;
 
-      // Parallelize room lookup and reply data fetch
-      const roomPromise = verifiedRooms.has(roomId)
+      const chatRoom = await (verifiedRooms.has(roomId)
         ? getCachedChatRoomWithLocation(roomId).then((c) => {
             if (!c?.chatRoom) throw new Error("Chat room not found");
             return c.chatRoom;
@@ -128,19 +128,7 @@ export function setupChatRoomSocket(
         : verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin).then((cr) => {
             verifiedRooms.add(roomId);
             return cr;
-          });
-      const replyPromise = replyToId != null
-        ? chatRoomMessageService.getReplyDataById(replyToId)
-        : Promise.resolve(null);
-
-      const [chatRoom, replyData] = await Promise.all([roomPromise, replyPromise]);
-
-      if (replyToId != null) {
-        if (!replyData) throw new Error("The message you are replying to does not exist");
-        if (replyData.chatRoomId !== chatRoom.id)
-          throw new Error("Cannot reply to a message in a different chatroom");
-        if (replyData.deleted) throw new Error("Cannot reply to a deleted message");
-      }
+          }));
 
       const tempId = nextTempId();
       const messageToSend = {
@@ -155,31 +143,20 @@ export function setupChatRoomSocket(
         isReply: replyToId != null,
         replyToId: replyToId ?? null,
         tempId: clientTempId ?? undefined,
-        replyTo: replyData
+        replyTo: replyToId != null && replyPreview
           ? {
-              id: replyData.id,
-              content: replyData.deleted
-                ? "Message Has Been Deleted"
-                : replyData.content,
-              imageUrl: replyData.deleted ? null : replyData.imageUrl,
-              senderDisplayId: replyData.wasAnonymous
-                ? "Anonymous"
-                : replyData.sender.displayId,
+              content: replyPreview.content,
+              senderDisplayId: replyPreview.senderDisplayId,
+              imageUrl: replyPreview.imageUrl ?? null,
             }
           : null,
       };
-
-      // Build a reverse map: socketId → userId for block filtering
-      const socketToUserId: { [socketId: string]: number } = {};
-      for (const [uid, entry] of Object.entries(userSocketMap)) {
-        socketToUserId[entry.socketId] = Number(uid);
-      }
 
       // Broadcast immediately — before the DB write
       const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));
       if (roomSockets) {
         for (const socketId of roomSockets) {
-          const recipientUserId = socketToUserId[socketId];
+          const recipientUserId = socketToUserIdMap.get(socketId);
           if (recipientUserId !== undefined && blockedUserIds.set.has(recipientUserId)) {
             continue;
           }
@@ -187,31 +164,19 @@ export function setupChatRoomSocket(
         }
       }
 
-      // Persist asynchronously — announce real ID when done
-      try {
-        const message = await chatRoomMessageService.createFast(
-          chatRoom.id,
-          user.id,
-          content,
-          imageUrl,
-          replyToId ?? undefined,
-          wasAnonymous,
-        );
-        io.to(String(chatRoom.id)).emit("messageIdAssigned", { tempId, realId: message.id });
-        enqueueModerationJob({
-          contentType: "CHAT_MESSAGE",
-          contentId: message.id,
-          userId: user.id,
-          text: content,
-          imageUrl: message.imageUrl ?? undefined,
-          socketMeta: {
-            type: "CHAT_MESSAGE",
-            chatRoomId: chatRoom.id,
-          },
-        });
-      } catch {
+      // Persist via background queue — worker emits messageIdAssigned when done
+      enqueueMessageWrite({
+        type: "CHAT_MESSAGE",
+        tempId,
+        chatRoomId: chatRoom.id,
+        userId: user.id,
+        content,
+        imageUrl,
+        replyToId: replyToId ?? undefined,
+        wasAnonymous,
+      }).catch(() => {
         io.to(`user:${user.id}`).emit("messageFailed", { tempId });
-      }
+      });
     } catch (error: any) {
       socket.emit("error", error.message || "An unexpected error has occurred");
     }
