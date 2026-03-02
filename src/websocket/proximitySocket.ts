@@ -31,7 +31,7 @@ export function setupProximitySocket(
 
   let cachedSuspension: { suspended: boolean; until: Date | null } | null = null;
   let suspensionCachedAt = 0;
-  const SUSPENSION_CACHE_TTL = 30_000;
+  const SUSPENSION_CACHE_TTL = 300_000;
 
   // Cached mutual user IDs — refreshed every 10s by updateLocation.
   // The proximityTyping handler reads from this instead of hitting Redis.
