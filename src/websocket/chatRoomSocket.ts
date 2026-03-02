@@ -31,7 +31,6 @@ export function setupChatRoomSocket(
   user: UserWithPreferences,
   userSocketMap: { [userId: number]: { socketId: string; proximityRadius: number } },
   blockedUserIds: { set: Set<number> },
-  socketToUserIdMap: Map<string, number>,
 ) {
   // Track rooms where this socket has already passed range verification.
   // Once a user successfully joins a room, we skip the full
@@ -148,16 +147,7 @@ export function setupChatRoomSocket(
       };
 
       // Broadcast immediately — before the DB write
-      const roomSockets = io.sockets.adapter.rooms.get(String(roomId));
-      if (roomSockets) {
-        for (const socketId of roomSockets) {
-          const recipientUserId = socketToUserIdMap.get(socketId);
-          if (recipientUserId !== undefined && blockedUserIds.set.has(recipientUserId)) {
-            continue;
-          }
-          io.to(socketId).emit("receiveMessage", messageToSend);
-        }
-      }
+      io.to(String(roomId)).emit("receiveMessage", messageToSend);
 
       // Persist via background queue — worker emits messageIdAssigned when done
       enqueueMessageWrite({
