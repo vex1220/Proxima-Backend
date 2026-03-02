@@ -11,6 +11,7 @@ import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
+import { PerfTimer } from "../utils/perfTimer";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -106,6 +107,7 @@ export function setupProximitySocket(
   socket.on(
     "sendProximityMessage",
     async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId }) => {
+      const timer = new PerfTimer("sendProximityMessage");
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
         if (!content && !imageUrl) {
@@ -116,6 +118,7 @@ export function setupProximitySocket(
           socket.emit("error", "Message too long");
           return;
         }
+        timer.mark("validation");
 
         const now = Date.now();
         if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
@@ -125,6 +128,7 @@ export function setupProximitySocket(
         if (cachedSuspension.suspended) {
           return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
         }
+        timer.mark("suspensionCheck");
 
         // Fetch reply data if replying
         let replyData: { id: number; content: string; imageUrl: string | null; deleted: boolean; sender: { displayId: string } | null } | null = null;
@@ -135,6 +139,7 @@ export function setupProximitySocket(
             return;
           }
         }
+        timer.mark("replyLookup");
 
         const recipientIds = [user.id, ...cachedMutualUserIds];
         const wasAnonymous = user.preferences?.anonymousMode ?? true;
@@ -159,11 +164,13 @@ export function setupProximitySocket(
           userId: user.id,
           replyTo,
         };
+        timer.mark("buildMessage");
 
         // Broadcast immediately — before the DB write
         recipientIds.forEach((id) => {
           io.to(`user:${id}`).emit("receiveProximityMessage", messageToSend);
         });
+        timer.mark("broadcast");
 
         // Persist asynchronously — announce real ID when done
         try {
@@ -175,9 +182,11 @@ export function setupProximitySocket(
             imageUrl,
             replyToId ?? undefined,
           );
+          timer.mark("dbWrite");
           recipientIds.forEach((id) => {
             io.to(`user:${id}`).emit("proximityMessageIdAssigned", { tempId, realId: message.id });
           });
+          timer.mark("idAssigned");
           enqueueModerationJob({
             contentType: "PROXIMITY_MESSAGE",
             contentId: message.id,
@@ -191,6 +200,8 @@ export function setupProximitySocket(
               senderRadius: user.preferences?.proximityRadius ?? 1609,
             },
           });
+          timer.mark("moderationEnqueue");
+          timer.end();
         } catch {
           io.to(`user:${user.id}`).emit("proximityMessageFailed", { tempId });
         }

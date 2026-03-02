@@ -11,6 +11,7 @@ import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
+import { PerfTimer } from "../utils/perfTimer";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -42,9 +43,11 @@ export function setupChatRoomSocket(
 
 
   socket.on("joinRoom", async (roomId: number) => {
+    const timer = new PerfTimer("joinRoom");
     try {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
       verifiedRooms.add(roomId);
+      timer.mark("verifyRange");
 
       socket.join(String(roomId));
 
@@ -56,9 +59,14 @@ export function setupChatRoomSocket(
         userCount,
         message: `${user.displayId} has joined room ${chatRoom.name}`,
       });
+      timer.mark("joinAndNotify");
 
       const lastMessages = await getLastFiftyMessages(roomId, user.id);
+      timer.mark("loadHistory");
+
       socket.emit("joinedRoom", { chatRoom, lastMessages });
+      timer.mark("emitToClient");
+      timer.end();
     } catch (error: any) {
       socket.emit("error", error.message || "An unexpected error has occurred");
     }
@@ -94,6 +102,7 @@ export function setupChatRoomSocket(
   });
 
   socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId }) => {
+    const timer = new PerfTimer("sendMessage");
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
@@ -101,6 +110,7 @@ export function setupChatRoomSocket(
         socket.emit("error", "Message too long");
         return;
       }
+      timer.mark("validation");
 
       const now = Date.now();
       if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
@@ -110,6 +120,7 @@ export function setupChatRoomSocket(
       if (cachedSuspension.suspended) {
         return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
       }
+      timer.mark("suspensionCheck");
 
       let chatRoom;
       if (verifiedRooms.has(roomId)) {
@@ -136,6 +147,7 @@ export function setupChatRoomSocket(
           throw new Error("Cannot reply to a message in a different chatroom");
         if (replyData.deleted) throw new Error("Cannot reply to a deleted message");
       }
+      timer.mark("roomAndReplyLookup");
 
       const tempId = Date.now();
       const messageToSend = {
@@ -162,12 +174,14 @@ export function setupChatRoomSocket(
             }
           : null,
       };
+      timer.mark("buildMessage");
 
       // Build a reverse map: socketId → userId for block filtering
       const socketToUserId: { [socketId: string]: number } = {};
       for (const [uid, entry] of Object.entries(userSocketMap)) {
         socketToUserId[entry.socketId] = Number(uid);
       }
+      timer.mark("buildSocketMap");
 
       // Broadcast immediately — before the DB write
       const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));
@@ -180,6 +194,7 @@ export function setupChatRoomSocket(
           io.to(socketId).emit("receiveMessage", messageToSend);
         }
       }
+      timer.mark("broadcast");
 
       // Persist asynchronously — announce real ID when done
       try {
@@ -191,7 +206,9 @@ export function setupChatRoomSocket(
           replyToId ?? undefined,
           wasAnonymous,
         );
+        timer.mark("dbWrite");
         io.to(String(chatRoom.id)).emit("messageIdAssigned", { tempId, realId: message.id });
+        timer.mark("idAssigned");
         enqueueModerationJob({
           contentType: "CHAT_MESSAGE",
           contentId: message.id,
@@ -203,6 +220,8 @@ export function setupChatRoomSocket(
             chatRoomId: chatRoom.id,
           },
         });
+        timer.mark("moderationEnqueue");
+        timer.end();
       } catch {
         io.to(`user:${user.id}`).emit("messageFailed", { tempId });
       }
