@@ -43,7 +43,8 @@ function localGet(roomId: number): { chatRoom: any; location: any } | null {
 
 function localSet(roomId: number, payload: { chatRoom: any; location: any }): void {
   if (localCache.size >= CHATROOM_CACHE_MAX) {
-    localCache.delete(localCache.keys().next().value);
+    const firstKey = localCache.keys().next().value;
+    if (firstKey !== undefined) localCache.delete(firstKey);
   }
   localCache.set(roomId, { payload, expiresAt: Date.now() + CHATROOM_CACHE_TTL_MS });
 }
