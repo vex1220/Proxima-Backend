@@ -5,6 +5,7 @@ import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
 import { removeUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
+import { getIo } from "./ioInstance";
 
 const userSocketMap: {
   [userId: number]: {
@@ -12,6 +13,15 @@ const userSocketMap: {
     proximityRadius: number;
   };
 } = {};
+
+export function patchUserAnonymousMode(userId: number, enabled: boolean): void {
+  const entry = userSocketMap[userId];
+  if (!entry) return;
+  const socket = getIo()?.sockets.sockets.get(entry.socketId) as any;
+  if (socket?.user?.preferences) {
+    socket.user.preferences.anonymousMode = enabled;
+  }
+}
 
 export function setupSocket(io: Server) {
   io.use(async (socket, next) => {

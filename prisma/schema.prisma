@@ -28,6 +28,7 @@ model User {
   lastActiveAt            DateTime              @default(now())
 
   preferences      User_Settings?
+  messageReactions MessageReaction[]
   FeedbackMessages FeedbackMessage[]
   posts            Post[]
   blocksGiven      UserBlock[] @relation("BlocksMade")
@@ -70,6 +71,9 @@ enum LocationType {
   EVENT
   GLOBAL
   BUILDING
+  GREEK
+  BAR
+  CLUB
 }
 
 model Location {
@@ -196,9 +200,23 @@ model ChatRoomMessage {
   replyTo          ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies          ChatRoomMessage[]     @relation("MessageReplies")
   votes            ChatRoomMessageVote[]
+  reactions        MessageReaction[]
 
   @@index([chatRoomId, createdAt])
   @@index([senderId])
+}
+
+model MessageReaction {
+  id        Int             @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  emoji     String
+  createdAt DateTime        @default(now())
+  message   ChatRoomMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model ChatRoomMessageVote {

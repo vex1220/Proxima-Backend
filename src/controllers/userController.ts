@@ -11,6 +11,7 @@ import {
   getSuspendedUsers,
 } from "../services/userService";
 import { getIo } from "../websocket/ioInstance";
+import { patchUserAnonymousMode } from "../websocket/setupSocket";
 import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao, getNotificationPreferencesDao, updateNotificationPreferencesDao } from "../dao/userServiceDao";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
@@ -251,6 +252,7 @@ export async function toggleAnonymousMode(req: Request, res: Response) {
       return res.status(400).json({ message: "enabled must be a boolean" });
     }
     await setAnonymousModeDao(user.id, enabled);
+    patchUserAnonymousMode(user.id, enabled);
     return res.status(200).json({ anonymousMode: enabled });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
