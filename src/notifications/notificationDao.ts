@@ -130,15 +130,22 @@ export async function markAllAsRead(userId: number) {
 
 /**
  * Check if a notification with this dedup key has already been sent.
- * Returns true if it exists (meaning we should NOT send again).
+ * If windowMs is provided, only counts sends within that window (e.g. 2 weeks).
+ * If windowMs is omitted, any past send blocks future sends permanently.
  */
 export async function hasBeenSent(
   ruleKey: string,
-  userId: number
+  userId: number,
+  windowMs?: number
 ): Promise<boolean> {
-  const existing = await prisma.notificationSentLog.findFirst({
-    where: { ruleKey, userId },
-  });
+  const where: { ruleKey: string; userId: number; sentAt?: { gt: Date } } = {
+    ruleKey,
+    userId,
+  };
+  if (windowMs !== undefined) {
+    where.sentAt = { gt: new Date(Date.now() - windowMs) };
+  }
+  const existing = await prisma.notificationSentLog.findFirst({ where });
   return !!existing;
 }
 

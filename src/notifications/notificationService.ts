@@ -35,6 +35,7 @@
 
 import { NotificationContext } from "./notificationTypes";
 import { getRulesForEvent } from "./notificationRules";
+import { hasBeenSent, recordSent } from "./notificationDao";
 import { getNotificationPreferencesDao } from "../dao/userServiceDao";
 import { sendPushToUser } from "./pushService";
 import logger from "../utils/logger";
@@ -75,6 +76,16 @@ export async function emitNotification(
           continue; // Rule decided not to fire — move on
         }
 
+        // Check deduplication
+        const dedupeKey = rule.dedupeKey(ctx);
+        if (dedupeKey !== null) {
+          const alreadySent = await hasBeenSent(dedupeKey, payload.userId, rule.dedupeWindowMs);
+          if (alreadySent) {
+            logger.info(`[Notification] Skipping "${rule.name}" for user ${payload.userId} (deduped)`);
+            continue;
+          }
+        }
+
         // Check if user has disabled this notification type
         const prefKey = NOTIF_PREF_MAP[payload.type];
         if (prefKey) {
@@ -83,6 +94,11 @@ export async function emitNotification(
             logger.info(`[Notification] Skipping "${rule.name}" for user ${payload.userId} (disabled by user)`);
             continue;
           }
+        }
+
+        // Record the send before delivering (prevents race conditions on slow push)
+        if (dedupeKey !== null) {
+          await recordSent(dedupeKey, payload.userId);
         }
 
         // Send push notification (non-blocking)

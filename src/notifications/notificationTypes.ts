@@ -114,12 +114,19 @@ export interface NotificationRule {
 
   /**
    * Generate a unique key for deduplication.
-   * If this key has been sent before, the notification won't be sent again.
-   * Return null to skip deduplication (always send).
+   * If this key has been sent before (within dedupeWindowMs if set), the
+   * notification won't be sent again. Return null to skip deduplication.
    *
    * Examples:
    *   "karma_milestone:post:42:15"  → only congratulate once per threshold
-   *   "inactive_reminder:user:7"    → only remind once per cycle
+   *   "inactive_reminder:user:7"    → only remind once per window
    */
   dedupeKey: (ctx: NotificationContext) => string | null;
+
+  /**
+   * How long (in ms) the dedup key is valid for.
+   * If undefined, the key is permanent (never send again once sent).
+   * Use this for time-windowed rules like "once every 2 weeks".
+   */
+  dedupeWindowMs?: number;
 }

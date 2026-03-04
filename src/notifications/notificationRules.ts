@@ -108,7 +108,7 @@ const karmaMilestoneRule: NotificationRule = {
 };
 
 // ─── Rule 3: Inactive User Reminder ─────────────────────────────────────────
-// Fires for users who haven't logged in for 48+ hours.
+// Fires for users who haven't logged in for 2+ weeks.
 // This is evaluated by the scheduler, not by a user action.
 
 const inactiveReminderRule: NotificationRule = {
@@ -154,15 +154,15 @@ const inactiveReminderRule: NotificationRule = {
     };
   },
 
-  // Only send one inactive reminder per 48-hour cycle per user.
-  // The scheduler runs every hour, but this key ensures we don't spam.
-  // We use a date bucket so the key expires naturally after the cycle.
+  // Only send one inactive reminder per 2-week window per user.
+  // The window is enforced by the service via dedupeWindowMs — no need
+  // for a time bucket in the key itself.
   dedupeKey(ctx: NotificationContext) {
     if (!ctx.targetUserId) return null;
-    // Create a bucket that changes every 48 hours
-    const bucket = Math.floor(Date.now() / (48 * 60 * 60 * 1000));
-    return `inactive_reminder:user:${ctx.targetUserId}:${bucket}`;
+    return `inactive_reminder:user:${ctx.targetUserId}`;
   },
+
+  dedupeWindowMs: 14 * 24 * 60 * 60 * 1000, // 2 weeks
 };
 
 // =============================================================================

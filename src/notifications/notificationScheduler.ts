@@ -2,7 +2,7 @@
 // NOTIFICATION SCHEDULER
 // =============================================================================
 // Runs periodic background jobs for notification rules that aren't triggered
-// by user actions (like the 48-hour inactive reminder).
+// by user actions (like the 2-week inactive reminder).
 //
 // Uses a simple setInterval approach. This works well for a single-server
 // deployment. If you scale to multiple server instances, you'll want to
@@ -13,7 +13,7 @@
 // CURRENT JOBS:
 // ─────────────
 // 1. Inactive user reminder — runs every hour, checks for users who haven't
-//    logged in for 48+ hours, and emits a SCHEDULED_INACTIVE_CHECK event
+//    logged in for 2 weeks, and emits a SCHEDULED_INACTIVE_CHECK event
 //    for each one. The dedup logic in the rule prevents spamming.
 // =============================================================================
 
@@ -25,8 +25,8 @@ import logger from "../utils/logger";
 // How often to run the inactive check (in milliseconds)
 const INACTIVE_CHECK_INTERVAL_MS = 60 * 60 * 1000; // 1 hour
 
-// How many hours of inactivity before we send a reminder
-const INACTIVE_THRESHOLD_HOURS = 48;
+// How many hours of inactivity before we send a reminder (2 weeks)
+const INACTIVE_THRESHOLD_HOURS = 336;
 
 let schedulerInterval: ReturnType<typeof setInterval> | null = null;
 
