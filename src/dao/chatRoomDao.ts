@@ -24,9 +24,24 @@ export async function getChatRoomByNameAndLocationDao(
 }
 
 export async function getAllChatRoomsByLocationDao(locationId: number) {
-  return prisma.chatRoom.findMany({
+  const rooms = await prisma.chatRoom.findMany({
     where: { deleted: false, locationId },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      messages: {
+        where: { deleted: false },
+        select: { id: true },
+        orderBy: { id: "desc" },
+        take: 1,
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
+
+  return rooms.map((r) => ({
+    id: r.id,
+    name: r.name,
+    latestMessageId: r.messages[0]?.id ?? null,
+  }));
 }

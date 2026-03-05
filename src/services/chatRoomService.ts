@@ -49,8 +49,8 @@ export async function chatRoomNameExistsInLocation(name: string, locationId: num
   return !!exists;
 }
 
-export async function getLastFiftyMessages(chatRoomId: number, userId: number) {
-  const messages = await chatRoomMessageService.getLatestChatRoomMessagesByChatRoom(chatRoomId, 50);
+export async function getLastMessages(chatRoomId: number, userId: number) {
+  const messages = await chatRoomMessageService.getLatestChatRoomMessagesByChatRoom(chatRoomId, 75);
 
   // Get all user IDs with a block relationship with the viewer — filter their messages out
   const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(userId));

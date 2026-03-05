@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { UserWithPreferences } from "../models/userTypes";
-import { getLastFiftyMessages } from "../services/chatRoomService";
+import { getLastMessages } from "../services/chatRoomService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { updateUserKarma } from "../services/userService";
 import { VoteService } from "../services/VoteService";
@@ -59,7 +59,7 @@ export function setupChatRoomSocket(
       });
       timer.mark("joinAndNotify");
 
-      const lastMessages = await getLastFiftyMessages(roomId, user.id);
+      const lastMessages = await getLastMessages(roomId, user.id);
       timer.mark("loadHistory");
 
       socket.emit("joinedRoom", { chatRoom, lastMessages });

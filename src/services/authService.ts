@@ -82,7 +82,7 @@ export async function genRefreshTokenFromUser(user: User) {
   return jwt.sign(
     { userId: user.id, email: user.email },
     process.env.JWT_REFRESH_SECRET as string,
-    { expiresIn: "7d" },
+    { expiresIn: "30d" },
   );
 }
 
