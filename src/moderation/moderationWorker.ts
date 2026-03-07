@@ -101,15 +101,7 @@ async function workerLoop(workerId: number): Promise<void> {
       // Everything else uses OpenAI's default binary flag.
       const s = result.categoryScores;
       const shouldReject =
-        // High-confidence hate speech only (raised from OpenAI default ~0.7)
-        (s["hate"] ?? 0) > 0.90 ||
-        (s["hate/threatening"] ?? 0) > 0.85 ||
-        // Raised harassment threshold — banter/arguments won't trigger
-        (s["harassment"] ?? 0) > 0.90 ||
-        (s["harassment/threatening"] ?? 0) > 0.85 ||
-        // Violence: only flag very graphic content
-        (s["violence"] ?? 0) > 0.90 ||
-        (s["violence/graphic"] ?? 0) > 0.85 ||
+        // hate/harassment/violence temporarily disabled for testing
         // Sexual content — keep at OpenAI default sensitivity
         result.categories["sexual"] === true ||
         result.categories["sexual/minors"] === true ||
