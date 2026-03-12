@@ -38,6 +38,9 @@ model User {
   notifications    Notification[]
   sentLogs         NotificationSentLog[]
   mutedLocations   MutedLocation[]
+  dmConversationsA DirectConversation[] @relation("DMPartA")
+  dmConversationsB DirectConversation[] @relation("DMPartB")
+  directMessages   DirectMessage[]      @relation("DMSender")
 }
 
 model User_Settings {
@@ -49,6 +52,8 @@ model User_Settings {
   notifComments         Boolean @default(true)
   notifKarma            Boolean @default(true)
   notifInactiveReminder Boolean @default(true)
+  notifLocationActivity Boolean @default(true)
+  notifDMs              Boolean @default(true)
   user                  User?   @relation(fields: [userId], references: [id])
 }
 
@@ -299,6 +304,50 @@ enum ContentType {
   POST_COMMENT
   CHAT_MESSAGE
   PROXIMITY_MESSAGE
+  DIRECT_MESSAGE
+}
+
+enum ConversationStatus {
+  PENDING
+  ACCEPTED
+}
+
+model DirectConversation {
+  id             Int                @id @default(autoincrement())
+  createdAt      DateTime           @default(now())
+  initiatorId    Int
+  participantAId Int
+  participantBId Int
+  status         ConversationStatus @default(PENDING)
+  lastReadMsgIdA Int?
+  lastReadMsgIdB Int?
+  participantA   User               @relation("DMPartA", fields: [participantAId], references: [id])
+  participantB   User               @relation("DMPartB", fields: [participantBId], references: [id])
+  messages       DirectMessage[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+}
+
+model DirectMessage {
+  id             Int                @id @default(autoincrement())
+  createdAt      DateTime           @default(now())
+  content        String?
+  imageUrl       String?
+  conversationId Int
+  senderId       Int
+  replyToId      Int?
+  deleted        Boolean            @default(false)
+  wasAnonymous   Boolean            @default(false)
+  editedAt       DateTime?
+  conversation   DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User               @relation("DMSender", fields: [senderId], references: [id])
+  replyTo        DirectMessage?     @relation("DMReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        DirectMessage[]    @relation("DMReplies")
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 model Report {

@@ -3,6 +3,7 @@ import { userFromAccessToken } from "../services/authService";
 import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
+import { setupDMSocket } from "./dmSocket";
 import { removeUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
 import { getIo } from "./ioInstance";
@@ -13,6 +14,10 @@ const userSocketMap: {
     proximityRadius: number;
   };
 } = {};
+
+export function getUserSocketMap() {
+  return userSocketMap;
+}
 
 export function patchUserAnonymousMode(userId: number, enabled: boolean): void {
   const entry = userSocketMap[userId];
@@ -69,6 +74,7 @@ export function setupSocket(io: Server) {
     // Both socket handlers now receive the userSocketMap for block filtering
     setupChatRoomSocket(io, socket, user, userSocketMap);
     setupProximitySocket(io, socket, user, userSocketMap);
+    setupDMSocket(io, socket, user, userSocketMap);
 
     socket.on("disconnect", () => {
       delete userSocketMap[user.id];

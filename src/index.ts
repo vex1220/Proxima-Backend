@@ -34,6 +34,7 @@ import notificationRoutes from "./routes/notification";
 import { startNotificationScheduler } from "./notifications";
 import { startProximityMessageCleanup } from "./jobs/proximityMessageCleanup";
 import adminRoutes from "./routes/admin";
+import dmRoutes from "./routes/dm";
 import { prisma } from "./utils/prisma";
 
 dotenv.config();
@@ -86,6 +87,7 @@ app.use("/api/report", reportRoutes);
 app.use("/api/moderation", moderationRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/upload", uploadRouter);
+app.use("/api/dm", dmRoutes);
 app.use("/admin", adminRoutes);
 
 app.get("/", (_req, res) => {

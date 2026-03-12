@@ -74,6 +74,14 @@ export const createPost = withAuth(async (req, res) => {
       },
     });
 
+    emitNotificationAsync({
+      event: NotificationEvent.POST_CREATED,
+      actorId: user.id,
+      locationId,
+      postId: createdPost.id,
+      postTitle: title,
+    });
+
     const postList = await postService.getPostListByLocationBatched(locationId, user.id);
 
     return res.status(201).json({
@@ -122,27 +130,6 @@ export const commentOnPost = withAuth(async (req, res) => {
 
     if (!post?.location) {
       return res.status(400).json({ message: "invalid post location" });
-    }
-
-    if (
-      post?.location?.latitude != null &&
-      post?.location?.longitude != null &&
-      post?.location?.size != null
-    ) {
-      if (
-        !(await verifyLocationAndUserInRange(post?.location, user.id)) &&
-        !user.isAdmin
-      ) {
-        return res
-          .status(403)
-          .json({ message: "user out of range to post in this chatroom" });
-      }
-    } else {
-      if (!user.isAdmin) {
-        return res
-          .status(400)
-          .json({ message: "the specified location does not support user location" });
-      }
     }
 
     const createdComment = await postCommentService.createPostComment({

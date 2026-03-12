@@ -104,6 +104,8 @@ export async function userDetails(req: Request, res: Response) {
       notifComments: user.preferences?.notifComments ?? true,
       notifKarma: user.preferences?.notifKarma ?? true,
       notifInactiveReminder: user.preferences?.notifInactiveReminder ?? true,
+      notifLocationActivity: user.preferences?.notifLocationActivity ?? true,
+      notifDMs: user.preferences?.notifDMs ?? true,
       suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
       suspendedContentPreview: user.suspendedContentPreview ?? null,
     });
@@ -268,11 +270,13 @@ export async function updateNotificationPreferences(req: Request, res: Response)
     const user = req.user;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { notifComments, notifKarma, notifInactiveReminder } = req.body;
+    const { notifComments, notifKarma, notifInactiveReminder, notifLocationActivity, notifDMs } = req.body;
     const update: Record<string, boolean> = {};
     if (typeof notifComments === "boolean") update.notifComments = notifComments;
     if (typeof notifKarma === "boolean") update.notifKarma = notifKarma;
     if (typeof notifInactiveReminder === "boolean") update.notifInactiveReminder = notifInactiveReminder;
+    if (typeof notifLocationActivity === "boolean") update.notifLocationActivity = notifLocationActivity;
+    if (typeof notifDMs === "boolean") update.notifDMs = notifDMs;
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: "No valid preference fields provided" });

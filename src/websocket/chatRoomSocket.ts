@@ -11,6 +11,7 @@ import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
+import { emitNotificationAsync, NotificationEvent } from "../notifications";
 import { PerfTimer } from "../utils/perfTimer";
 
 function getUserCount(io: Server, roomId: string) {
@@ -230,6 +231,13 @@ export function setupChatRoomSocket(
           },
         });
         timer.mark("moderationEnqueue");
+        emitNotificationAsync({
+          event: NotificationEvent.CHATROOM_MESSAGE_SENT,
+          actorId: user.id,
+          locationId: chatRoom.locationId,
+          chatRoomId: chatRoom.id,
+          chatRoomName: chatRoom.name,
+        });
         timer.end();
       } catch {
         io.to(`user:${user.id}`).emit("messageFailed", { tempId });

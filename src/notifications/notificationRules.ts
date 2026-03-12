@@ -165,6 +165,67 @@ const inactiveReminderRule: NotificationRule = {
   dedupeWindowMs: 14 * 24 * 60 * 60 * 1000, // 2 weeks
 };
 
+// ─── Rule 4: New Post in Location Feed ──────────────────────────────────────
+// Fires when a new post is created at a location. Targets all online users
+// at that location (broadcast via WebSocket, not a single-user push).
+
+const newPostInFeedRule: NotificationRule = {
+  name: "new_post_in_feed",
+  events: [NotificationEvent.POST_CREATED],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || !ctx.locationId) return null;
+
+    return {
+      userId: -1, // placeholder — broadcast handles per-user delivery
+      type: NotificationType.NEW_POST_IN_FEED,
+      title: "New post nearby",
+      body: ctx.postTitle
+        ? `New post: "${truncate(ctx.postTitle, 50)}"`
+        : "Someone posted near you",
+      data: { postId: ctx.postId, locationId: ctx.locationId },
+    };
+  },
+
+  dedupeKey() {
+    return null; // every post notifies
+  },
+};
+
+// ─── Rule 5: New Chatroom Message ───────────────────────────────────────────
+// Fires when a message is sent in a chatroom. Targets online users at the
+// location who are NOT currently in that chatroom.
+
+const CHATROOM_MESSAGE_DEDUP_WINDOW_MS = 30_000; // 30 seconds
+
+const newChatroomMessageRule: NotificationRule = {
+  name: "new_chatroom_message",
+  events: [NotificationEvent.CHATROOM_MESSAGE_SENT],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || !ctx.locationId || !ctx.chatRoomId) return null;
+
+    return {
+      userId: -1, // placeholder — broadcast handles per-user delivery
+      type: NotificationType.NEW_CHATROOM_MESSAGE,
+      title: ctx.chatRoomName
+        ? `New message in ${truncate(ctx.chatRoomName, 40)}`
+        : "New chatroom message",
+      body: "Tap to join the conversation",
+      data: { chatRoomId: ctx.chatRoomId, locationId: ctx.locationId },
+    };
+  },
+
+  dedupeKey(ctx: NotificationContext) {
+    if (!ctx.chatRoomId) return null;
+    return `chatroom_message:room:${ctx.chatRoomId}`;
+  },
+
+  dedupeWindowMs: CHATROOM_MESSAGE_DEDUP_WINDOW_MS,
+};
+
 // =============================================================================
 // RULE REGISTRY
 // =============================================================================
@@ -179,6 +240,8 @@ export const NOTIFICATION_RULES: NotificationRule[] = [
   newCommentRule,
   karmaMilestoneRule,
   inactiveReminderRule,
+  newPostInFeedRule,
+  newChatroomMessageRule,
 ];
 
 /**

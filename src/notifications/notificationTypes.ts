@@ -20,6 +20,10 @@ export const NotificationType = {
   NEW_COMMENT: "NEW_COMMENT",
   KARMA_MILESTONE: "KARMA_MILESTONE",
   INACTIVE_REMINDER: "INACTIVE_REMINDER",
+  NEW_DM: "NEW_DM",
+  DM_ACCEPTED: "DM_ACCEPTED",
+  NEW_POST_IN_FEED: "NEW_POST_IN_FEED",
+  NEW_CHATROOM_MESSAGE: "NEW_CHATROOM_MESSAGE",
 } as const;
 
 export type NotificationType =
@@ -69,6 +73,12 @@ export interface NotificationContext {
   // ── Karma/vote context ──
   newKarmaTotal?: number;
   voteCount?: number;
+
+  // ── Location activity context ──
+  locationId?: number;
+  locationName?: string;
+  chatRoomId?: number;
+  chatRoomName?: string;
 }
 
 /**
@@ -80,6 +90,8 @@ export const NotificationEvent = {
   COMMENT_CREATED: "COMMENT_CREATED",
   POST_VOTED: "POST_VOTED",
   SCHEDULED_INACTIVE_CHECK: "SCHEDULED_INACTIVE_CHECK",
+  POST_CREATED: "POST_CREATED",
+  CHATROOM_MESSAGE_SENT: "CHATROOM_MESSAGE_SENT",
 } as const;
 
 export type NotificationEvent =
