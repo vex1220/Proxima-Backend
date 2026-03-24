@@ -296,6 +296,7 @@ export function setupDMSocket(
     const payload = {
       conversationId,
       isTyping,
+      senderId: user.id,
       senderDisplayId: user.preferences?.anonymousMode ? "Anonymous" : user.displayId,
     };
 

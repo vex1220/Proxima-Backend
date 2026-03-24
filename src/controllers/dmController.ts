@@ -79,6 +79,16 @@ export async function startConversation(req: Request, res: Response) {
 
     const conversation = await getOrCreateConversation(user.id, otherUser.id);
     const full = await getConversationById(conversation.id);
+    if (!full) return res.status(404).json({ message: "Conversation not found" });
+
+    if (full.recipientWasAnonymous) {
+      const recipientIsA = full.participantAId !== full.initiatorId;
+      if (recipientIsA) {
+        (full.participantA as any).displayId = "Anonymous";
+      } else {
+        (full.participantB as any).displayId = "Anonymous";
+      }
+    }
 
     return res.status(200).json({ conversation: full });
   } catch (error: any) {

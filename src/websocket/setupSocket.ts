@@ -4,7 +4,7 @@ import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
 import { setupDMSocket } from "./dmSocket";
-import { removeUserLocation } from "../utils/redisUserLocation";
+import { removeUserLocation, removeOfflineUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
 import { getIo } from "./ioInstance";
 
@@ -65,6 +65,8 @@ export function setupSocket(io: Server) {
       socketId: socket.id,
       proximityRadius: user.preferences?.proximityRadius ?? 1609,
     };
+
+    removeOfflineUserLocation(user.id).catch(() => {});
 
     // Join a personal room so the moderation worker can emit targeted events
     socket.join(`user:${user.id}`);

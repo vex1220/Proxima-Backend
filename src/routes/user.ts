@@ -13,6 +13,7 @@ import {
   getUserComments,
   toggleAnonymousMode,
   updateNotificationPreferences,
+  updateLocation,
   muteLocation,
   unmuteLocation,
   getMutedLocations,
@@ -61,6 +62,9 @@ router.post("/anonymousMode", toggleAnonymousMode);
 
 // Notification preferences
 router.post("/notification-preferences", updateNotificationPreferences);
+
+// Background location update
+router.post("/update-location", updateLocation);
 
 // Muted locations
 router.post("/muteLocation", muteLocation);

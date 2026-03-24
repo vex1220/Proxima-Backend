@@ -4,6 +4,8 @@ import {
   getNearbyUsers,
   filterMutuallyNearbyUsers,
   removeUserLocation,
+  getUserLocation,
+  saveOfflineUserLocation,
 } from "../utils/redisUserLocation";
 import { UserWithPreferences } from "../models/userTypes";
 import { ProximityMessageService } from "../services/ProximityMessageService";
@@ -11,6 +13,7 @@ import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
+import { emitNotificationAsync, NotificationEvent } from "../notifications";
 import { PerfTimer } from "../utils/perfTimer";
 
 const proximityMessageService = new ProximityMessageService();
@@ -201,6 +204,14 @@ export function setupProximitySocket(
             },
           });
           timer.mark("moderationEnqueue");
+
+          emitNotificationAsync({
+            event: NotificationEvent.PROXIMITY_MESSAGE_SENT,
+            actorId: user.id,
+            senderLatitude: latitude,
+            senderLongitude: longitude,
+            senderRadius: userSocketMap[user.id]?.proximityRadius ?? 1609,
+          });
           timer.end();
         } catch {
           io.to(`user:${user.id}`).emit("proximityMessageFailed", { tempId });
@@ -212,11 +223,17 @@ export function setupProximitySocket(
     },
   );
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const displayName = getDisplayName();
     for (const id of previousMutualUserIds) {
       io.to(`user:${id}`).emit("proximityUserLeft", { displayId: displayName });
     }
+    try {
+      const lastLocation = await getUserLocation(String(user.id));
+      if (lastLocation) {
+        await saveOfflineUserLocation(user.id, lastLocation);
+      }
+    } catch {}
     removeUserLocation(user.id);
     console.log(`User ${user.displayId} has been removed from redis server`);
   });

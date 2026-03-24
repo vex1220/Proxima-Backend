@@ -88,4 +88,42 @@ async getPostsByLocation(locationId: number) {
         const hasMore = rows.length > PAGE_SIZE;
         return { posts: hasMore ? rows.slice(0, PAGE_SIZE) : rows, hasMore };
     }
+
+    async getLocationFreePosts(
+        userLat: number,
+        userLng: number,
+        radiusMetres: number,
+        before?: Date,
+    ) {
+        const deltaLat = radiusMetres / 111320;
+        const deltaLng = radiusMetres / (111320 * Math.cos(userLat * Math.PI / 180));
+
+        const PAGE_SIZE = 50;
+        const rows = await prisma.post.findMany({
+            where: {
+                locationId: null,
+                deleted: false,
+                latitude:  { gte: userLat - deltaLat, lte: userLat + deltaLat },
+                longitude: { gte: userLng - deltaLng, lte: userLng + deltaLng },
+                ...(before ? { createdAt: { lt: before } } : {}),
+            },
+            select: {
+                id: true,
+                title: true,
+                content: true,
+                imageUrl: true,
+                posterId: true,
+                locationId: true,
+                latitude: true,
+                longitude: true,
+                createdAt: true,
+                wasAnonymous: true,
+                poster: { select: { displayId: true, deleted: true } },
+            },
+            orderBy: { createdAt: "desc" },
+            take: PAGE_SIZE + 1,
+        });
+        const hasMore = rows.length > PAGE_SIZE;
+        return { posts: hasMore ? rows.slice(0, PAGE_SIZE) : rows, hasMore };
+    }
 }

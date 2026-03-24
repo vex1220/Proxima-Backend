@@ -197,8 +197,6 @@ const newPostInFeedRule: NotificationRule = {
 // Fires when a message is sent in a chatroom. Targets online users at the
 // location who are NOT currently in that chatroom.
 
-const CHATROOM_MESSAGE_DEDUP_WINDOW_MS = 30_000; // 30 seconds
-
 const newChatroomMessageRule: NotificationRule = {
   name: "new_chatroom_message",
   events: [NotificationEvent.CHATROOM_MESSAGE_SENT],
@@ -218,12 +216,40 @@ const newChatroomMessageRule: NotificationRule = {
     };
   },
 
-  dedupeKey(ctx: NotificationContext) {
-    if (!ctx.chatRoomId) return null;
-    return `chatroom_message:room:${ctx.chatRoomId}`;
+  dedupeKey() {
+    return null; // every message notifies
+  },
+};
+
+// ─── Rule 6: New Proximity Message ──────────────────────────────────────────
+// Fires when a proximity message is sent. Targets offline users within the
+// sender's proximity radius.
+
+const PROXIMITY_MESSAGE_DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+const newProximityMessageRule: NotificationRule = {
+  name: "new_proximity_message",
+  events: [NotificationEvent.PROXIMITY_MESSAGE_SENT],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || ctx.senderLatitude == null || ctx.senderLongitude == null) return null;
+
+    return {
+      userId: -1, // broadcast — offline push handles per-user delivery
+      type: NotificationType.NEW_PROXIMITY_MESSAGE,
+      title: "New message nearby",
+      body: "Someone sent a message near you",
+      data: {},
+    };
   },
 
-  dedupeWindowMs: CHATROOM_MESSAGE_DEDUP_WINDOW_MS,
+  dedupeKey(ctx: NotificationContext) {
+    if (!ctx.actorId) return null;
+    return `proximity_message:sender:${ctx.actorId}`;
+  },
+
+  dedupeWindowMs: PROXIMITY_MESSAGE_DEDUP_WINDOW_MS,
 };
 
 // =============================================================================
@@ -242,6 +268,7 @@ export const NOTIFICATION_RULES: NotificationRule[] = [
   inactiveReminderRule,
   newPostInFeedRule,
   newChatroomMessageRule,
+  newProximityMessageRule,
 ];
 
 /**

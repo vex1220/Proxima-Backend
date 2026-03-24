@@ -54,6 +54,7 @@ model User_Settings {
   notifInactiveReminder Boolean @default(true)
   notifLocationActivity Boolean @default(true)
   notifDMs              Boolean @default(true)
+  notifProximity        Boolean @default(true)
   user                  User?   @relation(fields: [userId], references: [id])
 }
 
@@ -120,17 +121,20 @@ model Post {
   content          String?
   imageUrl         String?
   posterId         Int
-  locationId       Int
+  locationId       Int?
+  latitude         Float?
+  longitude        Float?
   deleted          Boolean          @default(false)
   wasAnonymous     Boolean          @default(false)
   moderationStatus ModerationStatus @default(PENDING)
-  location         Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  location         Location?        @relation(fields: [locationId], references: [id], onDelete: Cascade)
   poster           User             @relation(fields: [posterId], references: [id])
   comments         PostComment[]
   votes            PostVote[]
 
   @@index(locationId)
   @@index([locationId, deleted, createdAt(sort: Desc)])
+  @@index([deleted, createdAt(sort: Desc)])
 }
 
 model PostComment {
@@ -318,8 +322,9 @@ model DirectConversation {
   initiatorId    Int
   participantAId Int
   participantBId Int
-  status         ConversationStatus @default(PENDING)
-  lastReadMsgIdA Int?
+  status                ConversationStatus @default(PENDING)
+  recipientWasAnonymous Boolean            @default(false)
+  lastReadMsgIdA        Int?
   lastReadMsgIdB Int?
   participantA   User               @relation("DMPartA", fields: [participantAId], references: [id])
   participantB   User               @relation("DMPartB", fields: [participantBId], references: [id])

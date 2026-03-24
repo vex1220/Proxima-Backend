@@ -13,6 +13,7 @@ import {
 import { getIo } from "../websocket/ioInstance";
 import { patchUserAnonymousMode } from "../websocket/setupSocket";
 import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao, getNotificationPreferencesDao, updateNotificationPreferencesDao } from "../dao/userServiceDao";
+import { saveOfflineUserLocation } from "../utils/redisUserLocation";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { ProximityMessageService } from "../services/ProximityMessageService";
@@ -106,6 +107,7 @@ export async function userDetails(req: Request, res: Response) {
       notifInactiveReminder: user.preferences?.notifInactiveReminder ?? true,
       notifLocationActivity: user.preferences?.notifLocationActivity ?? true,
       notifDMs: user.preferences?.notifDMs ?? true,
+      notifProximity: user.preferences?.notifProximity ?? true,
       suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
       suspendedContentPreview: user.suspendedContentPreview ?? null,
     });
@@ -270,13 +272,14 @@ export async function updateNotificationPreferences(req: Request, res: Response)
     const user = req.user;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { notifComments, notifKarma, notifInactiveReminder, notifLocationActivity, notifDMs } = req.body;
+    const { notifComments, notifKarma, notifInactiveReminder, notifLocationActivity, notifDMs, notifProximity } = req.body;
     const update: Record<string, boolean> = {};
     if (typeof notifComments === "boolean") update.notifComments = notifComments;
     if (typeof notifKarma === "boolean") update.notifKarma = notifKarma;
     if (typeof notifInactiveReminder === "boolean") update.notifInactiveReminder = notifInactiveReminder;
     if (typeof notifLocationActivity === "boolean") update.notifLocationActivity = notifLocationActivity;
     if (typeof notifDMs === "boolean") update.notifDMs = notifDMs;
+    if (typeof notifProximity === "boolean") update.notifProximity = notifProximity;
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: "No valid preference fields provided" });
@@ -335,6 +338,23 @@ export async function getMutedLocations(req: Request, res: Response) {
     }
     const locations = await getMutedLocationsDao(user.id);
     return res.status(200).json({ locations });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function updateLocation(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const { latitude, longitude } = req.body;
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
+      return res.status(400).json({ message: "latitude and longitude must be numbers" });
+    }
+
+    await saveOfflineUserLocation(user.id, { latitude, longitude });
+    return res.status(200).json({ message: "Location updated" });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

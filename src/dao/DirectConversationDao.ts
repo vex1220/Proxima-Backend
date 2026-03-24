@@ -15,8 +15,18 @@ export async function getOrCreateConversation(
   });
   if (existing) return existing;
 
+  const recipientSettings = await prisma.user_Settings.findUnique({
+    where: { userId: otherUserId },
+    select: { anonymousMode: true },
+  });
+
   return prisma.directConversation.create({
-    data: { initiatorId, participantAId, participantBId },
+    data: {
+      initiatorId,
+      participantAId,
+      participantBId,
+      recipientWasAnonymous: recipientSettings?.anonymousMode ?? false,
+    },
   });
 }
 
@@ -75,11 +85,17 @@ export async function getInboxForUser(userId: number) {
       const isA = c.participantAId === userId;
       const lastReadId = isA ? c.lastReadMsgIdA : c.lastReadMsgIdB;
 
+      const otherUser = isA ? c.participantB : c.participantA;
+      const isInitiator = c.initiatorId === userId;
+      const maskedOtherUser = isInitiator && c.recipientWasAnonymous
+        ? { ...otherUser, displayId: "Anonymous" }
+        : otherUser;
+
       return {
         id: c.id,
         status: c.status,
         initiatorId: c.initiatorId,
-        otherUser: isA ? c.participantB : c.participantA,
+        otherUser: maskedOtherUser,
         lastMessage: lastMsg
           ? {
               id: lastMsg.id,

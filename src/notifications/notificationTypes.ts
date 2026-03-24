@@ -24,6 +24,7 @@ export const NotificationType = {
   DM_ACCEPTED: "DM_ACCEPTED",
   NEW_POST_IN_FEED: "NEW_POST_IN_FEED",
   NEW_CHATROOM_MESSAGE: "NEW_CHATROOM_MESSAGE",
+  NEW_PROXIMITY_MESSAGE: "NEW_PROXIMITY_MESSAGE",
 } as const;
 
 export type NotificationType =
@@ -79,6 +80,11 @@ export interface NotificationContext {
   locationName?: string;
   chatRoomId?: number;
   chatRoomName?: string;
+
+  // ── Proximity message context ──
+  senderLatitude?: number;
+  senderLongitude?: number;
+  senderRadius?: number;
 }
 
 /**
@@ -92,6 +98,7 @@ export const NotificationEvent = {
   SCHEDULED_INACTIVE_CHECK: "SCHEDULED_INACTIVE_CHECK",
   POST_CREATED: "POST_CREATED",
   CHATROOM_MESSAGE_SENT: "CHATROOM_MESSAGE_SENT",
+  PROXIMITY_MESSAGE_SENT: "PROXIMITY_MESSAGE_SENT",
 } as const;
 
 export type NotificationEvent =

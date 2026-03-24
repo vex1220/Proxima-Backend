@@ -20,6 +20,7 @@
 import { getInactiveUsers } from "./notificationDao";
 import { emitNotification } from "./notificationService";
 import { NotificationEvent } from "./notificationTypes";
+import { cleanupExpiredOfflineLocations } from "../utils/redisUserLocation";
 import logger from "../utils/logger";
 
 // How often to run the inactive check (in milliseconds)
@@ -47,7 +48,11 @@ export function startNotificationScheduler(): void {
 
   // Run immediately on startup, then on interval
   runInactiveCheck();
-  schedulerInterval = setInterval(runInactiveCheck, INACTIVE_CHECK_INTERVAL_MS);
+  runOfflineLocationCleanup();
+  schedulerInterval = setInterval(() => {
+    runInactiveCheck();
+    runOfflineLocationCleanup();
+  }, INACTIVE_CHECK_INTERVAL_MS);
 }
 
 /**
@@ -91,5 +96,16 @@ async function runInactiveCheck(): Promise<void> {
   } catch (error) {
     // Scheduler errors should never crash the server
     logger.error("[NotificationScheduler] Check failed:", error);
+  }
+}
+
+async function runOfflineLocationCleanup(): Promise<void> {
+  try {
+    const removed = await cleanupExpiredOfflineLocations();
+    if (removed > 0) {
+      logger.info(`[NotificationScheduler] Cleaned up ${removed} expired offline location(s)`);
+    }
+  } catch (error) {
+    logger.error("[NotificationScheduler] Offline location cleanup failed:", error);
   }
 }

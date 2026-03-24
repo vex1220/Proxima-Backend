@@ -174,4 +174,67 @@ export async function getNearbyUsersCount(
   return mutualCount;
 }
 
-//left off here
+// ─── Offline Location (persists after socket disconnect) ──────────────────────
+
+const OFFLINE_LOCATIONS_KEY = "user:offline_locations";
+const OFFLINE_TIMESTAMPS_KEY = "user:offline_timestamps";
+const OFFLINE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+export async function saveOfflineUserLocation(
+  userId: number,
+  location: { latitude: number; longitude: number },
+) {
+  const pipeline = redis.pipeline();
+  pipeline.geoadd(
+    OFFLINE_LOCATIONS_KEY,
+    location.longitude,
+    location.latitude,
+    String(userId),
+  );
+  pipeline.hset(OFFLINE_TIMESTAMPS_KEY, String(userId), String(Date.now()));
+  await pipeline.exec();
+}
+
+export async function removeOfflineUserLocation(userId: number) {
+  const pipeline = redis.pipeline();
+  pipeline.zrem(OFFLINE_LOCATIONS_KEY, String(userId));
+  pipeline.hdel(OFFLINE_TIMESTAMPS_KEY, String(userId));
+  await pipeline.exec();
+}
+
+export async function getNearbyOfflineUsers(
+  latitude: number,
+  longitude: number,
+  radius: number,
+): Promise<number[]> {
+  const userIds = (await redis.georadius(
+    OFFLINE_LOCATIONS_KEY,
+    longitude,
+    latitude,
+    radius,
+    "m",
+  )) as string[];
+  return userIds.map(Number);
+}
+
+export async function cleanupExpiredOfflineLocations(): Promise<number> {
+  const all = await redis.hgetall(OFFLINE_TIMESTAMPS_KEY);
+  const now = Date.now();
+  const expired: string[] = [];
+
+  for (const [userId, timestamp] of Object.entries(all)) {
+    if (now - Number(timestamp) > OFFLINE_TTL_MS) {
+      expired.push(userId);
+    }
+  }
+
+  if (expired.length === 0) return 0;
+
+  const pipeline = redis.pipeline();
+  for (const userId of expired) {
+    pipeline.zrem(OFFLINE_LOCATIONS_KEY, userId);
+    pipeline.hdel(OFFLINE_TIMESTAMPS_KEY, userId);
+  }
+  await pipeline.exec();
+  return expired.length;
+}
