@@ -72,8 +72,11 @@ export async function startConversation(req: Request, res: Response) {
       return res.status(400).json({ message: "Cannot start a conversation with yourself" });
     }
 
-    const blockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
-    if (blockedUserIds.has(otherUser.id)) {
+    const [senderBlockIds, recipientBlockIds] = await Promise.all([
+      getCachedBlockRelatedUserIds(user.id),
+      getCachedBlockRelatedUserIds(otherUser.id),
+    ]);
+    if (new Set(senderBlockIds).has(otherUser.id) || new Set(recipientBlockIds).has(user.id)) {
       return res.status(403).json({ message: "Cannot message this user" });
     }
 

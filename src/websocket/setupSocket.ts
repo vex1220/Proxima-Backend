@@ -7,6 +7,7 @@ import { setupDMSocket } from "./dmSocket";
 import { removeUserLocation, removeOfflineUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
 import { getIo } from "./ioInstance";
+import { getUserVoiceRoom, removeVoiceParticipant } from "../services/voiceService";
 
 const userSocketMap: {
   [userId: number]: {
@@ -78,9 +79,21 @@ export function setupSocket(io: Server) {
     setupProximitySocket(io, socket, user, userSocketMap);
     setupDMSocket(io, socket, user, userSocketMap);
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       delete userSocketMap[user.id];
       clearSession(user.id).catch(() => {});
+
+      try {
+        const voiceRoomId = await getUserVoiceRoom(user.id);
+        if (voiceRoomId) {
+          await removeVoiceParticipant(voiceRoomId, user.id);
+          io.to(`chatroom:${voiceRoomId}`).emit("voiceParticipantLeft", {
+            chatRoomId: voiceRoomId,
+            userId: user.id,
+          });
+        }
+      } catch {}
+
       console.log(`User ${user.displayId} disconnected`);
     });
   });

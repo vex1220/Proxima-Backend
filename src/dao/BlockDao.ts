@@ -80,7 +80,7 @@ export async function getBlockListDao(userId: number) {
   return prisma.userBlock.findMany({
     where: { blockerId: userId },
     include: {
-      blocked: { select: { displayId: true } },
+      blocked: { select: { id: true, displayId: true } },
     },
     orderBy: { createdAt: "desc" },
   });

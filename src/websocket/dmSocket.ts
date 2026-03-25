@@ -120,6 +120,11 @@ export function setupDMSocket(
         return socket.emit("error", "Cannot message this user");
       }
 
+      const recipientBlockIds = new Set(await getCachedBlockRelatedUserIds(otherUserId));
+      if (recipientBlockIds.has(user.id)) {
+        return socket.emit("error", "Cannot message this user");
+      }
+
       const wasAnonymous = user.preferences?.anonymousMode ?? true;
 
       const replyData = replyToId != null
@@ -208,7 +213,8 @@ export function setupDMSocket(
         io.to(`user:${user.id}`).emit("dmMessageFailed", { tempId: msgTempId });
       }
     } catch (error: any) {
-      socket.emit("error", error.message || "An unexpected error has occurred");
+      console.error("[dmSocket] sendDM error:", error);
+      socket.emit("error", "An unexpected error has occurred");
     }
   });
 
@@ -270,7 +276,8 @@ export function setupDMSocket(
       io.to(`dm:${conversationId}`).emit("dmMessageEdited", editPayload);
       io.to(`user:${otherUserId}`).emit("dmMessageEdited", editPayload);
     } catch (error: any) {
-      socket.emit("error", error.message || "Failed to edit message");
+      console.error("[dmSocket] editDM error:", error);
+      socket.emit("error", "Failed to edit message");
     }
   });
 

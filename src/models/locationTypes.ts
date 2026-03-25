@@ -1,4 +1,4 @@
-import { LocationType } from "@prisma/client";
+import { LocationType, GreekCategory } from "@prisma/client";
 
 export type CreateLocationInput = {
   name: string;
@@ -6,4 +6,6 @@ export type CreateLocationInput = {
   longitude?: number | null;
   size?: number;
   type?: LocationType;
+  greekCategory?: GreekCategory | null;
+  campusLocationId?: number | null;
 };

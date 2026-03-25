@@ -35,6 +35,8 @@ import { startNotificationScheduler } from "./notifications";
 import { startProximityMessageCleanup } from "./jobs/proximityMessageCleanup";
 import adminRoutes from "./routes/admin";
 import dmRoutes from "./routes/dm";
+import voiceRoutes from "./routes/voice";
+import greekRatingRoutes from "./routes/greekRating";
 import { prisma } from "./utils/prisma";
 
 dotenv.config();
@@ -88,6 +90,8 @@ app.use("/api/moderation", moderationRoutes);
 app.use("/api/notification", notificationRoutes);
 app.use("/upload", uploadRouter);
 app.use("/api/dm", dmRoutes);
+app.use("/api/voice", voiceRoutes);
+app.use("/api/greek-rating", greekRatingRoutes);
 app.use("/admin", adminRoutes);
 
 app.get("/", (_req, res) => {

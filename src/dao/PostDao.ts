@@ -16,15 +16,15 @@ export class PostDao{
     }
 
     async getPostById(id:number){
-        return prisma.post.findUnique({
-            where: {id},
+        return prisma.post.findFirst({
+            where: {id, poster: { deleted: false }},
             include: {poster: {select: {displayId: true , id: true}}},
         });
     }
 
     async getPostByIdWithLocation(id:number){
-        return prisma.post.findUnique({
-            where: {id},
+        return prisma.post.findFirst({
+            where: {id, poster: { deleted: false }},
             include: {
                 poster: {select: {displayId: true , id: true}},
                 location : true
@@ -68,6 +68,7 @@ async getPostsByLocation(locationId: number) {
             where: {
                 locationId: { in: locationIds },
                 deleted: false,
+                poster: { deleted: false },
                 ...(before ? { createdAt: { lt: before } } : {}),
             },
             select: {
@@ -103,6 +104,7 @@ async getPostsByLocation(locationId: number) {
             where: {
                 locationId: null,
                 deleted: false,
+                poster: { deleted: false },
                 latitude:  { gte: userLat - deltaLat, lte: userLat + deltaLat },
                 longitude: { gte: userLng - deltaLng, lte: userLng + deltaLng },
                 ...(before ? { createdAt: { lt: before } } : {}),

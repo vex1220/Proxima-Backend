@@ -9,9 +9,9 @@ const locationService = new LocationService();
 
 export async function createLocation(req: Request, res: Response) {
   try {
-    const {name,latitude,longitude,size,type} = req.body;
+    const {name,latitude,longitude,size,type,greekCategory,campusLocationId} = req.body;
 
-    const result = await locationService.createLocation(name,latitude,longitude,size,type);
+    const result = await locationService.createLocation(name,latitude,longitude,size,type,greekCategory,campusLocationId);
     const locationList = await locationService.listLocations();
     return res.status(201).json({
       message: `location: ${result.location.name} has been created`,

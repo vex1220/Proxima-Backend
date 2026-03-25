@@ -13,6 +13,7 @@ import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
 import { emitNotificationAsync, NotificationEvent } from "../notifications";
 import { PerfTimer } from "../utils/perfTimer";
+import { getVoiceParticipants } from "../services/voiceService";
 
 function getUserCount(io: Server, roomId: string) {
   const room = io.sockets.adapter.rooms.get(roomId);
@@ -60,10 +61,13 @@ export function setupChatRoomSocket(
       });
       timer.mark("joinAndNotify");
 
-      const lastMessages = await getLastMessages(roomId, user.id);
+      const [lastMessages, voiceParticipants] = await Promise.all([
+        getLastMessages(roomId, user.id),
+        getVoiceParticipants(roomId).catch(() => []),
+      ]);
       timer.mark("loadHistory");
 
-      socket.emit("joinedRoom", { chatRoom, lastMessages });
+      socket.emit("joinedRoom", { chatRoom, lastMessages, voiceParticipants });
       timer.mark("emitToClient");
       timer.end();
     } catch (error: any) {

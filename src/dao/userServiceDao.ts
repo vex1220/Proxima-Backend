@@ -28,6 +28,7 @@ export async function createUserDao(
  *  - All PostComments they wrote
  *  - All ChatRoomMessages they sent
  *  - All ProximityMessages they sent
+ *  - All DirectMessages they sent
  *
  * What gets hard-deleted (cleanup - no longer needed):
  *  - Their votes (PostVote, PostCommentVote, ChatRoomMessageVote)
@@ -42,7 +43,7 @@ export async function setUserDeletedDao(id: number) {
   return prisma.$transaction(async (tx) => {
     // ── 1. Soft-delete all user-generated content ────────────────────────
 
-    const [posts, comments, chatMessages, proximityMessages] =
+    const [posts, comments, chatMessages, proximityMessages, directMessages] =
       await Promise.all([
         tx.post.updateMany({
           where: { posterId: id, deleted: false },
@@ -57,6 +58,10 @@ export async function setUserDeletedDao(id: number) {
           data: { deleted: true },
         }),
         tx.proximityMessage.updateMany({
+          where: { senderId: id, deleted: false },
+          data: { deleted: true },
+        }),
+        tx.directMessage.updateMany({
           where: { senderId: id, deleted: false },
           data: { deleted: true },
         }),
@@ -98,6 +103,7 @@ export async function setUserDeletedDao(id: number) {
         comments: comments.count,
         chatMessages: chatMessages.count,
         proximityMessages: proximityMessages.count,
+        directMessages: directMessages.count,
       },
     };
   });

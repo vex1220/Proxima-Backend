@@ -37,6 +37,7 @@ import { dequeueModerationJob } from "./moderationQueue";
 import { moderateContent } from "./moderationService";
 import { ModerationJob, ModeratableContentType } from "./moderationTypes";
 import { suspendUser } from "../services/userService";
+import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
 
 const SUSPENSION_DURATION_MINUTES = 240; // 4 hours per violation
 
@@ -180,6 +181,11 @@ async function handleRejection(job: ModerationJob): Promise<void> {
       contentPreview,
     });
     logger.info(`[ModerationWorker] Suspended user #${job.userId} until ${suspendedUntil.toISOString()}`);
+  }
+
+  const activeVoiceRoom = await getUserVoiceRoom(job.userId);
+  if (activeVoiceRoom) {
+    forceRemoveParticipant(activeVoiceRoom, job.userId).catch(() => {});
   }
 
   // ── 4. Emit real-time "ghost delete" via WebSocket ───────────────────

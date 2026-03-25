@@ -19,6 +19,7 @@ import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { PostDao } from "../dao/PostDao";
 import { PostCommentService } from "../services/PostCommentService";
+import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
 const proximityMessageService = new ProximityMessageService();
@@ -384,6 +385,11 @@ export async function adminSuspendUser(req: Request, res: Response) {
         suspendedUntil: suspendedUntil.toISOString(),
         contentPreview: null,
       });
+    }
+
+    const activeVoiceRoom = await getUserVoiceRoom(targetUser.id);
+    if (activeVoiceRoom) {
+      forceRemoveParticipant(activeVoiceRoom, targetUser.id).catch(() => {});
     }
 
     return res.status(200).json({

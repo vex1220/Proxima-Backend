@@ -41,6 +41,7 @@ model User {
   dmConversationsA DirectConversation[] @relation("DMPartA")
   dmConversationsB DirectConversation[] @relation("DMPartB")
   directMessages   DirectMessage[]      @relation("DMSender")
+  greekHouseVotes  GreekHouseVote[]
 }
 
 model User_Settings {
@@ -82,23 +83,40 @@ enum LocationType {
   CLUB
 }
 
+enum GreekCategory {
+  FRATERNITY
+  SORORITY
+}
+
+enum VoteType {
+  TOUSE
+  BOUSE
+}
+
 model Location {
-  id        Int          @id @default(autoincrement())
-  createdAt DateTime     @default(now())
-  name      String
-  deleted   Boolean      @default(false)
-  latitude  Float?
-  longitude Float?
-  size      Int          @default(0)
-  type      LocationType @default(NONE)
-  chatRooms ChatRoom[]
-  posts     Post[]
-  mutedBy   MutedLocation[]
+  id               Int            @id @default(autoincrement())
+  createdAt        DateTime       @default(now())
+  name             String
+  deleted          Boolean        @default(false)
+  latitude         Float?
+  longitude        Float?
+  size             Int            @default(0)
+  type             LocationType   @default(NONE)
+  greekCategory    GreekCategory?
+  campusLocationId Int?
+  campusLocation   Location?      @relation("CampusGreekHouses", fields: [campusLocationId], references: [id])
+  greekHouses      Location[]     @relation("CampusGreekHouses")
+  chatRooms        ChatRoom[]
+  posts            Post[]
+  mutedBy          MutedLocation[]
+  greekHouseVotes    GreekHouseVote[]
+  campusEmailDomains CampusEmailDomain[]
 
   @@index([latitude, longitude])
   @@index([type])
   @@index([deleted])
   @@index([name, deleted])
+  @@index([campusLocationId])
 }
 
 model MutedLocation {
@@ -446,4 +464,33 @@ model NotificationSentLog {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([ruleKey, userId])
+}
+
+// ─── Greek House Rating ──────────────────────────────────────────────────────
+
+model CampusEmailDomain {
+  id       Int      @id @default(autoincrement())
+  campusId Int
+  domain   String
+  campus   Location @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@unique([campusId, domain])
+  @@index([domain])
+}
+
+model GreekHouseVote {
+  id         Int           @id @default(autoincrement())
+  userId     Int
+  locationId Int
+  campusId   Int
+  category   GreekCategory
+  voteType   VoteType
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campusId, category, voteType])
+  @@index([locationId])
+  @@index([campusId, category])
 }

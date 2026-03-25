@@ -70,6 +70,7 @@ export async function getBlockList(req: Request, res: Response) {
 
     return res.status(200).json({
       blockedUsers: blocks.map((b) => ({
+        userId: b.blocked.id,
         displayId: b.blocked.displayId,
         blockedAt: b.createdAt,
       })),
