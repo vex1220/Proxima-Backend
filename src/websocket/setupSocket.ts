@@ -87,7 +87,7 @@ export function setupSocket(io: Server) {
         const voiceRoomId = await getUserVoiceRoom(user.id);
         if (voiceRoomId) {
           await removeVoiceParticipant(voiceRoomId, user.id);
-          io.to(`chatroom:${voiceRoomId}`).emit("voiceParticipantLeft", {
+          io.to(String(voiceRoomId)).emit("voiceParticipantLeft", {
             chatRoomId: voiceRoomId,
             userId: user.id,
           });

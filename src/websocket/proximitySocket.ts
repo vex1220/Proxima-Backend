@@ -15,9 +15,6 @@ import { getCachedSuspensionStatus } from "../utils/redisSuspension";
 import { enqueueModerationJob } from "../moderation";
 import { emitNotificationAsync, NotificationEvent } from "../notifications";
 import { PerfTimer } from "../utils/perfTimer";
-import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
-import { getCachedChatRoomWithLocation } from "../utils/chatRoomSocketUtils";
-import { userInRangeOfLocation } from "../utils/redisUserLocation";
 
 const proximityMessageService = new ProximityMessageService();
 
@@ -52,18 +49,6 @@ export function setupProximitySocket(
   socket.on("updateLocation", async ({ latitude, longitude }) => {
     try {
       await saveUserLocation(user.id, { latitude, longitude });
-
-      // Voice auto-disconnect: check if user moved out of range of their active voice room
-      const activeVoiceRoom = await getUserVoiceRoom(user.id);
-      if (activeVoiceRoom) {
-        const cached = await getCachedChatRoomWithLocation(activeVoiceRoom);
-        if (cached?.location) {
-          const stillInRange = await userInRangeOfLocation(latitude, longitude, cached.location);
-          if (!stillInRange) {
-            forceRemoveParticipant(activeVoiceRoom, user.id).catch(() => {});
-          }
-        }
-      }
 
       const now = Date.now();
       if (now - lastCountCalcTime < COUNT_THROTTLE_MS) return;
