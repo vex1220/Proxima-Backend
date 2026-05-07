@@ -81,6 +81,17 @@ resource "aws_security_group" "rds" {
   }
 }
 
+resource "aws_vpc_security_group_ingress_rule" "rds_public_temp" {
+  for_each = toset(var.db_public_ingress_cidrs)
+
+  security_group_id = aws_security_group.rds.id
+  description       = "Temporary ingress for one-off RDS access"
+  cidr_ipv4         = each.value
+  from_port         = 5432
+  to_port           = 5432
+  ip_protocol       = "tcp"
+}
+
 resource "aws_security_group" "redis" {
   name        = "${local.name_prefix}-redis-sg"
   description = "Redis reachable only from ECS tasks"

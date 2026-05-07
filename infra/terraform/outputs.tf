@@ -73,3 +73,23 @@ output "ecs_service_name" {
 output "github_actions_role_arn" {
   value = aws_iam_role.github_actions_deploy.arn
 }
+
+output "acm_certificate_arn" {
+  value = aws_acm_certificate.api.arn
+}
+
+output "acm_validation_records" {
+  description = "Add these as CNAME records at your DNS registrar to validate the ACM cert"
+  value = [
+    for dvo in aws_acm_certificate.api.domain_validation_options : {
+      record_name  = dvo.resource_record_name
+      record_type  = dvo.resource_record_type
+      record_value = dvo.resource_record_value
+    }
+  ]
+}
+
+output "api_traffic_target" {
+  description = "Add a CNAME record at your registrar: api.<yourdomain> -> this value"
+  value       = aws_lb.main.dns_name
+}

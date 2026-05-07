@@ -128,3 +128,15 @@ variable "github_deploy_refs" {
   type        = list(string)
   default     = ["refs/heads/PErformance-checks", "refs/heads/main"]
 }
+
+variable "db_public_ingress_cidrs" {
+  description = "If non-empty, RDS becomes publicly accessible to these CIDRs (for one-off ops). Set back to [] to lock down."
+  type        = list(string)
+  default     = []
+}
+
+variable "api_domain" {
+  description = "Public hostname for the API. Cert is issued for this name and the ALB HTTPS listener uses it."
+  type        = string
+  default     = "api.proximachat.dev"
+}
