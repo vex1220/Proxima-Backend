@@ -116,3 +116,15 @@ variable "image_tag" {
   type        = string
   default     = "latest"
 }
+
+variable "github_repo" {
+  description = "GitHub repo in owner/name format permitted to deploy"
+  type        = string
+  default     = "vex1220/Proxima-Backend"
+}
+
+variable "github_deploy_refs" {
+  description = "Git refs whose pushes trigger deploys"
+  type        = list(string)
+  default     = ["refs/heads/PErformance-checks", "refs/heads/main"]
+}
