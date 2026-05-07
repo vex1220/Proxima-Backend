@@ -1,0 +1,3 @@
+aws_region   = "us-east-2"
+project_name = "proxima"
+environment  = "prod"
