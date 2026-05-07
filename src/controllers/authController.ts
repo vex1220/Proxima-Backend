@@ -5,6 +5,9 @@ import {
   refreshAccessToken,
   sendOneTimeCode,
   verifyOneTimeCode,
+  sendPasswordResetCode,
+  verifyPasswordResetCode,
+  resetPassword as resetPasswordService,
 } from "../services/authService";
 import { getUserByEmail } from "../services/userService";
 import { touchUserActivity } from "../notifications";
@@ -127,6 +130,42 @@ export async function verifyCode(req: Request, res: Response) {
       accessToken,
       refreshToken,
     });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function forgotPassword(req: Request, res: Response) {
+  try {
+    const { email } = req.body;
+    const response = await sendPasswordResetCode(email);
+    return res.status(200).json(response);
+  } catch (error: any) {
+    if (/too many/i.test(error.message)) {
+      return res.status(429).json({ message: error.message });
+    }
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function verifyResetCode(req: Request, res: Response) {
+  try {
+    const { email, code } = req.body;
+    const { resetToken } = await verifyPasswordResetCode(email, code);
+    return res.status(200).json({ resetToken });
+  } catch (error: any) {
+    if (/too many/i.test(error.message)) {
+      return res.status(429).json({ message: error.message });
+    }
+    return res.status(400).json({ message: error.message });
+  }
+}
+
+export async function resetPassword(req: Request, res: Response) {
+  try {
+    const { resetToken, newPassword } = req.body;
+    const response = await resetPasswordService(resetToken, newPassword);
+    return res.status(200).json(response);
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
   }

@@ -78,6 +78,8 @@ resource "aws_ecs_task_definition" "app" {
       image     = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
       essential = true
 
+      command = ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/index.js"]
+
       portMappings = [
         {
           containerPort = var.app_port

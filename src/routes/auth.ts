@@ -6,6 +6,9 @@ import {
   sendOneTimeVerificationCode,
   verifyCode,
   logout,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword,
 } from "../controllers/authController";
 import { body } from "express-validator";
 import { validateRequest } from "../middleware/validateRequest";
@@ -48,5 +51,39 @@ router.post("/verify-code", verifyCode);
 router.post("/refresh", refresh);
 
 router.post("/logout", authenticateToken, logout);
+
+router.post(
+  "/forgot-password",
+  [
+    body("email").isEmail().withMessage("Valid email required"),
+    validateRequest,
+  ],
+  forgotPassword,
+);
+
+router.post(
+  "/verify-reset-code",
+  [
+    body("email").isEmail().withMessage("Valid email required"),
+    body("code")
+      .isString()
+      .isLength({ min: 6, max: 6 })
+      .withMessage("6-digit code required"),
+    validateRequest,
+  ],
+  verifyResetCode,
+);
+
+router.post(
+  "/reset-password",
+  [
+    body("resetToken").isString().notEmpty().withMessage("Reset token required"),
+    body("newPassword")
+      .isLength({ min: 6 })
+      .withMessage("Password must be at least 6 chars"),
+    validateRequest,
+  ],
+  resetPassword,
+);
 
 export default router;

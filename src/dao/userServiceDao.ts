@@ -163,6 +163,13 @@ export async function setUserVerifiedDao(id: number) {
   });
 }
 
+export async function updateUserPasswordDao(id: number, hashedPassword: string) {
+  return await prisma.user.update({
+    where: { id },
+    data: { password: hashedPassword },
+  });
+}
+
 // ─── Suspension ───────────────────────────────────────────────────────────────
 
 export async function suspendUserDao(id: number, until: Date, contentPreview?: string | null) {

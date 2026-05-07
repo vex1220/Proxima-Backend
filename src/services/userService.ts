@@ -9,6 +9,7 @@ import {
   updateUserProximityRadius,
   updateUserKarmaDao,
   setUserVerifiedDao,
+  updateUserPasswordDao,
   suspendUserDao,
   unsuspendUserDao,
   getSuspendedUsersDao,
@@ -73,6 +74,10 @@ export async function getUserKarma(userId: number) {
 
 export async function setUserVerified(userId: number) {
   return await setUserVerifiedDao(userId);
+}
+
+export async function updateUserPassword(userId: number, hashedPassword: string) {
+  return await updateUserPasswordDao(userId, hashedPassword);
 }
 
 // ─── Suspension ───────────────────────────────────────────────────────────────
