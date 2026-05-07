@@ -306,5 +306,22 @@ export async function resetPassword(resetToken: string, newPassword: string) {
   await redis.del(jtiKey);
   await clearSession(user.id);
 
+  // Best-effort confirmation email — don't fail the reset if Resend is down.
+  resend.emails
+    .send({
+      from: process.env.EMAIL_FROM!,
+      to: user.email,
+      subject: "Your Proxima password was changed",
+      html: `<p>Hi,</p>
+<p>Your Proxima password was just changed and you've been signed out on all devices.</p>
+<p>If this wasn't you, reset your password again immediately and contact support.</p>`,
+    })
+    .catch((err) => {
+      console.error(
+        "[Auth] Failed to send password-reset confirmation email:",
+        err,
+      );
+    });
+
   return { message: "Password has been reset" };
 }
