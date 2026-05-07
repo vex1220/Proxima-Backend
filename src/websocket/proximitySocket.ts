@@ -4,10 +4,15 @@ import {
   getNearbyUsers,
   filterMutuallyNearbyUsers,
   removeUserLocation,
+  getUserLocation,
+  saveOfflineUserLocation,
 } from "../utils/redisUserLocation";
 import { UserWithPreferences } from "../models/userTypes";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
+import { enqueueModerationJob } from "../moderation";
+import { emitNotificationAsync, NotificationEvent } from "../notifications";
+import { PerfTimer } from "../utils/perfTimer";
 import { enqueueMessageWrite } from "../jobs/messageWriteQueue";
 
 let tempIdCounter = 0;
@@ -33,7 +38,7 @@ export function setupProximitySocket(
 
   let cachedSuspension: { suspended: boolean; until: Date | null } | null = null;
   let suspensionCachedAt = 0;
-  const SUSPENSION_CACHE_TTL = 30_000;
+  const SUSPENSION_CACHE_TTL = 300_000;
 
   // Cached mutual user IDs — refreshed every 10s by updateLocation.
   // The proximityTyping handler reads from this instead of hitting Redis.
@@ -107,6 +112,8 @@ export function setupProximitySocket(
 
   socket.on(
     "sendProximityMessage",
+    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId }) => {
+      const timer = new PerfTimer("sendProximityMessage");
     async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId, replyPreview, tempId: clientTempId }) => {
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
@@ -118,6 +125,7 @@ export function setupProximitySocket(
           socket.emit("error", "Message too long");
           return;
         }
+        timer.mark("validation");
 
         const now = Date.now();
         if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
@@ -127,6 +135,18 @@ export function setupProximitySocket(
         if (cachedSuspension.suspended) {
           return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
         }
+        timer.mark("suspensionCheck");
+
+        // Fetch reply data if replying
+        let replyData: { id: number; content: string; imageUrl: string | null; deleted: boolean; sender: { displayId: string } | null } | null = null;
+        if (replyToId != null) {
+          replyData = await proximityMessageService.getReplyDataById(replyToId);
+          if (!replyData) {
+            socket.emit("error", "The message you are replying to does not exist");
+            return;
+          }
+        }
+        timer.mark("replyLookup");
 
         const recipientIds = [user.id, ...cachedMutualUserIds];
         const wasAnonymous = user.preferences?.anonymousMode ?? true;
@@ -152,12 +172,53 @@ export function setupProximitySocket(
           replyTo,
           tempId: clientTempId ?? undefined,
         };
+        timer.mark("buildMessage");
 
         // Broadcast immediately — before the DB write
         recipientIds.forEach((id) => {
           io.to(`user:${id}`).emit("receiveProximityMessage", messageToSend);
         });
+        timer.mark("broadcast");
 
+        // Persist asynchronously — announce real ID when done
+        try {
+          const message = await proximityMessageService.createFast(
+            user.id,
+            content,
+            latitude,
+            longitude,
+            imageUrl,
+            replyToId ?? undefined,
+          );
+          timer.mark("dbWrite");
+          recipientIds.forEach((id) => {
+            io.to(`user:${id}`).emit("proximityMessageIdAssigned", { tempId, realId: message.id });
+          });
+          timer.mark("idAssigned");
+          enqueueModerationJob({
+            contentType: "PROXIMITY_MESSAGE",
+            contentId: message.id,
+            userId: user.id,
+            text: content,
+            imageUrl: message.imageUrl ?? undefined,
+            socketMeta: {
+              type: "PROXIMITY_MESSAGE",
+              latitude,
+              longitude,
+              senderRadius: user.preferences?.proximityRadius ?? 1609,
+            },
+          });
+          timer.mark("moderationEnqueue");
+
+          emitNotificationAsync({
+            event: NotificationEvent.PROXIMITY_MESSAGE_SENT,
+            actorId: user.id,
+            senderLatitude: latitude,
+            senderLongitude: longitude,
+            senderRadius: userSocketMap[user.id]?.proximityRadius ?? 1609,
+          });
+          timer.end();
+        } catch {
         // Persist via background queue — worker emits proximityMessageIdAssigned when done
         enqueueMessageWrite({
           type: "PROXIMITY_MESSAGE",
@@ -180,11 +241,17 @@ export function setupProximitySocket(
     },
   );
 
-  socket.on("disconnect", () => {
+  socket.on("disconnect", async () => {
     const displayName = getDisplayName();
     for (const id of previousMutualUserIds) {
       io.to(`user:${id}`).emit("proximityUserLeft", { displayId: displayName });
     }
+    try {
+      const lastLocation = await getUserLocation(String(user.id));
+      if (lastLocation) {
+        await saveOfflineUserLocation(user.id, lastLocation);
+      }
+    } catch {}
     removeUserLocation(user.id);
     console.log(`User ${user.displayId} has been removed from redis server`);
   });

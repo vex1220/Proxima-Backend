@@ -3,8 +3,11 @@ import { userFromAccessToken } from "../services/authService";
 import { setupChatRoomSocket } from "./chatRoomSocket";
 import { UserWithPreferences } from "../models/userTypes";
 import { setupProximitySocket } from "./proximitySocket";
-import { removeUserLocation } from "../utils/redisUserLocation";
+import { setupDMSocket } from "./dmSocket";
+import { removeUserLocation, removeOfflineUserLocation } from "../utils/redisUserLocation";
 import { clearSession } from "../utils/redisSession";
+import { getIo } from "./ioInstance";
+import { getUserVoiceRoom, removeVoiceParticipant } from "../services/voiceService";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { blockEvents } from "../events/blockEvents";
 
@@ -14,6 +17,19 @@ const userSocketMap: {
     proximityRadius: number;
   };
 } = {};
+
+export function getUserSocketMap() {
+  return userSocketMap;
+}
+
+export function patchUserAnonymousMode(userId: number, enabled: boolean): void {
+  const entry = userSocketMap[userId];
+  if (!entry) return;
+  const socket = getIo()?.sockets.sockets.get(entry.socketId) as any;
+  if (socket?.user?.preferences) {
+    socket.user.preferences.anonymousMode = enabled;
+  }
+}
 
 export function setupSocket(io: Server) {
   io.use(async (socket, next) => {
@@ -53,11 +69,19 @@ export function setupSocket(io: Server) {
       proximityRadius: user.preferences?.proximityRadius ?? 1609,
     };
 
+    removeOfflineUserLocation(user.id).catch(() => {});
+
     // Join a personal room so the moderation worker can emit targeted events
     socket.join(`user:${user.id}`);
 
     console.log(`User ${user.displayId} connected via WebSocket`);
 
+    // Both socket handlers now receive the userSocketMap for block filtering
+    setupChatRoomSocket(io, socket, user, userSocketMap);
+    setupProximitySocket(io, socket, user, userSocketMap);
+    setupDMSocket(io, socket, user, userSocketMap);
+
+    socket.on("disconnect", async () => {
     // Per-connection block list cache — shared by chat and proximity handlers.
     // Refreshed immediately via blockEvents when a block/unblock happens.
     const blockedUserIds = { set: new Set<number>() };
@@ -78,6 +102,18 @@ export function setupSocket(io: Server) {
       blockEvents.off(`changed:${user.id}`, refreshBlockList);
       delete userSocketMap[user.id];
       clearSession(user.id).catch(() => {});
+
+      try {
+        const voiceRoomId = await getUserVoiceRoom(user.id);
+        if (voiceRoomId) {
+          await removeVoiceParticipant(voiceRoomId, user.id);
+          io.to(String(voiceRoomId)).emit("voiceParticipantLeft", {
+            chatRoomId: voiceRoomId,
+            userId: user.id,
+          });
+        }
+      } catch {}
+
       console.log(`User ${user.displayId} disconnected`);
     });
   });

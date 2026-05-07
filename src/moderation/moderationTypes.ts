@@ -50,7 +50,7 @@ export interface ProximitySocketMeta {
 
 export interface PostSocketMeta {
   type: "POST";
-  locationId: number;
+  locationId?: number;
 }
 
 export interface CommentSocketMeta {

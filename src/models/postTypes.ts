@@ -1,6 +1,8 @@
 export type CreatePostInput = {
     posterId: number,
-    locationId:number,
+    locationId?: number,
+    latitude?: number,
+    longitude?: number,
     title: string,
     content?: string,
     imageUrl?: string,

@@ -20,48 +20,89 @@ const postCommentVoteService = new VoteService(VoteModel.PostCommentVote);
 
 export const createPost = withAuth(async (req, res) => {
   try {
-    const { locationId, title, content, imageUrl: rawImageUrl } = req.body;
+    const { locationId, latitude, longitude, title, content, imageUrl: rawImageUrl } = req.body;
     const user = req.user;
     const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
 
-    const location = await locationService.getLocationById(locationId);
-    if (!location) {
-      return res.status(400).json({ message: "invalid locationId" });
+    if (locationId) {
+      const location = await locationService.getLocationById(locationId);
+      if (!location) {
+        return res.status(400).json({ message: "invalid locationId" });
+      }
+
+      if (
+        location.latitude != null &&
+        location.longitude != null &&
+        location.size != null
+      ) {
+        if (
+          !(await verifyLocationAndUserInRange(location, user.id)) &&
+          !user.isAdmin
+        ) {
+          return res
+            .status(403)
+            .json({ message: "user out of range to post in this chatroom" });
+        }
+      } else {
+        if (!user.isAdmin) {
+          return res
+            .status(400)
+            .json({ message: "the specified location does not support user location" });
+        }
+      }
+
+      const createdPost = await postService.createPost({
+        posterId: user.id,
+        locationId,
+        title,
+        content,
+        imageUrl,
+        wasAnonymous: user.preferences?.anonymousMode ?? true,
+      });
+
+      enqueueModerationJob({
+        contentType: "POST",
+        contentId: createdPost.id,
+        userId: user.id,
+        text: [title, content].filter(Boolean).join("\n"),
+        imageUrl: createdPost.imageUrl ?? undefined,
+        socketMeta: {
+          type: "POST",
+          locationId,
+        },
+      });
+
+      emitNotificationAsync({
+        event: NotificationEvent.POST_CREATED,
+        actorId: user.id,
+        locationId,
+        postId: createdPost.id,
+        postTitle: title,
+      });
+
+      const postList = await postService.getPostListByLocationBatched(locationId, user.id);
+
+      return res.status(201).json({
+        message: `successfully posted`,
+        createdPost,
+        postList,
+      });
     }
 
-    if (
-      location.latitude != null &&
-      location.longitude != null &&
-      location.size != null
-    ) {
-      if (
-        !(await verifyLocationAndUserInRange(location, user.id)) &&
-        !user.isAdmin
-      ) {
-        return res
-          .status(403)
-          .json({ message: "user out of range to post in this chatroom" });
-      }
-    } else {
-      if (!user.isAdmin) {
-        return res
-          .status(400)
-          .json({ message: "the specified location does not support user location" });
-      }
+    if (latitude == null || longitude == null) {
+      return res.status(400).json({ message: "locationId or latitude/longitude is required" });
     }
 
     const createdPost = await postService.createPost({
       posterId: user.id,
-      locationId,
+      latitude,
+      longitude,
       title,
       content,
       imageUrl,
       wasAnonymous: user.preferences?.anonymousMode ?? true,
     });
 
-    // ── Enqueue for AI moderation (runs in background) ────────────────
-    // The post is already saved and will be returned below (optimistic).
-    // We combine title + content for moderation since both are user input.
     enqueueModerationJob({
       contentType: "POST",
       contentId: createdPost.id,
@@ -70,16 +111,12 @@ export const createPost = withAuth(async (req, res) => {
       imageUrl: createdPost.imageUrl ?? undefined,
       socketMeta: {
         type: "POST",
-        locationId,
       },
     });
-
-    const postList = await postService.getPostListByLocationBatched(locationId, user.id);
 
     return res.status(201).json({
       message: `successfully posted`,
       createdPost,
-      postList,
     });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
@@ -120,29 +157,8 @@ export const commentOnPost = withAuth(async (req, res) => {
 
     const post = await postService.getPostWithLocation(postId);
 
-    if (!post?.location) {
-      return res.status(400).json({ message: "invalid post location" });
-    }
-
-    if (
-      post?.location?.latitude != null &&
-      post?.location?.longitude != null &&
-      post?.location?.size != null
-    ) {
-      if (
-        !(await verifyLocationAndUserInRange(post?.location, user.id)) &&
-        !user.isAdmin
-      ) {
-        return res
-          .status(403)
-          .json({ message: "user out of range to post in this chatroom" });
-      }
-    } else {
-      if (!user.isAdmin) {
-        return res
-          .status(400)
-          .json({ message: "the specified location does not support user location" });
-      }
+    if (!post) {
+      return res.status(400).json({ message: "invalid post" });
     }
 
     const createdComment = await postCommentService.createPostComment({

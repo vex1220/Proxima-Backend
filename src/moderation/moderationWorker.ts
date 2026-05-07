@@ -37,6 +37,7 @@ import { dequeueModerationJob } from "./moderationQueue";
 import { moderateContent } from "./moderationService";
 import { ModerationJob, ModeratableContentType } from "./moderationTypes";
 import { suspendUser } from "../services/userService";
+import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
 
 const SUSPENSION_DURATION_MINUTES = 240; // 4 hours per violation
 
@@ -101,15 +102,14 @@ async function workerLoop(workerId: number): Promise<void> {
       // Everything else uses OpenAI's default binary flag.
       const s = result.categoryScores;
       const shouldReject =
-        // High-confidence hate speech only (raised from OpenAI default ~0.7)
-        (s["hate"] ?? 0) > 0.90 ||
-        (s["hate/threatening"] ?? 0) > 0.85 ||
-        // Raised harassment threshold — banter/arguments won't trigger
-        (s["harassment"] ?? 0) > 0.90 ||
-        (s["harassment/threatening"] ?? 0) > 0.85 ||
-        // Violence: only flag very graphic content
-        (s["violence"] ?? 0) > 0.90 ||
-        (s["violence/graphic"] ?? 0) > 0.85 ||
+        // Hate / harassment / violence — use score thresholds so
+        // borderline content (arguments, edgy humour) doesn't auto-ban
+        (s["hate"] ?? 0) >= 0.7 ||
+        (s["hate/threatening"] ?? 0) >= 0.7 ||
+        (s["harassment"] ?? 0) >= 0.7 ||
+        (s["harassment/threatening"] ?? 0) >= 0.7 ||
+        (s["violence"] ?? 0) >= 0.7 ||
+        (s["violence/graphic"] ?? 0) >= 0.7 ||
         // Sexual content — keep at OpenAI default sensitivity
         result.categories["sexual"] === true ||
         result.categories["sexual/minors"] === true ||
@@ -188,6 +188,11 @@ async function handleRejection(job: ModerationJob): Promise<void> {
       contentPreview,
     });
     logger.info(`[ModerationWorker] Suspended user #${job.userId} until ${suspendedUntil.toISOString()}`);
+  }
+
+  const activeVoiceRoom = await getUserVoiceRoom(job.userId);
+  if (activeVoiceRoom) {
+    forceRemoveParticipant(activeVoiceRoom, job.userId).catch(() => {});
   }
 
   // ── 4. Emit real-time "ghost delete" via WebSocket ───────────────────

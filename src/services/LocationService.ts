@@ -1,4 +1,4 @@
-import { ChatRoom, Location, LocationType, Post } from "@prisma/client";
+import { ChatRoom, Location, LocationType, GreekCategory, Post } from "@prisma/client";
 import { LocationDao } from "../dao/LocationDao";
 import { listChatRooms } from "./chatRoomService";
 import {prisma} from "../utils/prisma";
@@ -15,6 +15,8 @@ export class LocationService {
     longitude: number | null = null,
     size: number = 0,
     type: LocationType = LocationType.NONE,
+    greekCategory?: GreekCategory | null,
+    campusLocationId?: number | null,
   ):Promise <{location: Location, defaultChatRoom: ChatRoom}>{
     if (!name) throw new Error("Location name is required");
 
@@ -25,9 +27,17 @@ export class LocationService {
       await this.verifyGeo(latitude!, longitude!);
     }
 
+    if (type === LocationType.GREEK) {
+      if (!greekCategory) throw new Error("Greek locations require a greekCategory (FRATERNITY or SORORITY)");
+      if (!campusLocationId) throw new Error("Greek locations require a campusLocationId");
+    }
+
     try{
         const result = await prisma.$transaction(async (tx) => {
-            const location = await locationDao.createLocation(tx,{name,latitude,longitude,size,type});
+            const location = await locationDao.createLocation(tx,{
+              name,latitude,longitude,size,type,
+              ...(type === LocationType.GREEK ? { greekCategory, campusLocationId } : {}),
+            });
             const room = await createRoomDao("General",location.id,tx);
             return { location,defaultChatRoom: room}
         });
@@ -73,6 +83,8 @@ export class LocationService {
         longitude: location.longitude,
         size: location.size,
         type: location.type,
+        greekCategory: location.greekCategory,
+        campusLocationId: location.campusLocationId,
         chatRooms: locationChatRooms,
         locationPosts,
     }

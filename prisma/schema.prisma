@@ -28,6 +28,7 @@ model User {
   lastActiveAt            DateTime              @default(now())
 
   preferences      User_Settings?
+  messageReactions MessageReaction[]
   FeedbackMessages FeedbackMessage[]
   posts            Post[]
   blocksGiven      UserBlock[] @relation("BlocksMade")
@@ -37,6 +38,10 @@ model User {
   notifications    Notification[]
   sentLogs         NotificationSentLog[]
   mutedLocations   MutedLocation[]
+  dmConversationsA DirectConversation[] @relation("DMPartA")
+  dmConversationsB DirectConversation[] @relation("DMPartB")
+  directMessages   DirectMessage[]      @relation("DMSender")
+  greekHouseVotes  GreekHouseVote[]
 }
 
 model User_Settings {
@@ -48,6 +53,9 @@ model User_Settings {
   notifComments         Boolean @default(true)
   notifKarma            Boolean @default(true)
   notifInactiveReminder Boolean @default(true)
+  notifLocationActivity Boolean @default(true)
+  notifDMs              Boolean @default(true)
+  notifProximity        Boolean @default(true)
   user                  User?   @relation(fields: [userId], references: [id])
 }
 
@@ -70,25 +78,45 @@ enum LocationType {
   EVENT
   GLOBAL
   BUILDING
+  GREEK
+  BAR
+  CLUB
+}
+
+enum GreekCategory {
+  FRATERNITY
+  SORORITY
+}
+
+enum VoteType {
+  TOUSE
+  BOUSE
 }
 
 model Location {
-  id        Int          @id @default(autoincrement())
-  createdAt DateTime     @default(now())
-  name      String
-  deleted   Boolean      @default(false)
-  latitude  Float?
-  longitude Float?
-  size      Int          @default(0)
-  type      LocationType @default(NONE)
-  chatRooms ChatRoom[]
-  posts     Post[]
-  mutedBy   MutedLocation[]
+  id               Int            @id @default(autoincrement())
+  createdAt        DateTime       @default(now())
+  name             String
+  deleted          Boolean        @default(false)
+  latitude         Float?
+  longitude        Float?
+  size             Int            @default(0)
+  type             LocationType   @default(NONE)
+  greekCategory    GreekCategory?
+  campusLocationId Int?
+  campusLocation   Location?      @relation("CampusGreekHouses", fields: [campusLocationId], references: [id])
+  greekHouses      Location[]     @relation("CampusGreekHouses")
+  chatRooms        ChatRoom[]
+  posts            Post[]
+  mutedBy          MutedLocation[]
+  greekHouseVotes    GreekHouseVote[]
+  campusEmailDomains CampusEmailDomain[]
 
   @@index([latitude, longitude])
   @@index([type])
   @@index([deleted])
   @@index([name, deleted])
+  @@index([campusLocationId])
 }
 
 model MutedLocation {
@@ -111,17 +139,20 @@ model Post {
   content          String?
   imageUrl         String?
   posterId         Int
-  locationId       Int
+  locationId       Int?
+  latitude         Float?
+  longitude        Float?
   deleted          Boolean          @default(false)
   wasAnonymous     Boolean          @default(false)
   moderationStatus ModerationStatus @default(PENDING)
-  location         Location         @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  location         Location?        @relation(fields: [locationId], references: [id], onDelete: Cascade)
   poster           User             @relation(fields: [posterId], references: [id])
   comments         PostComment[]
   votes            PostVote[]
 
   @@index(locationId)
   @@index([locationId, deleted, createdAt(sort: Desc)])
+  @@index([deleted, createdAt(sort: Desc)])
 }
 
 model PostComment {
@@ -196,9 +227,23 @@ model ChatRoomMessage {
   replyTo          ChatRoomMessage?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
   replies          ChatRoomMessage[]     @relation("MessageReplies")
   votes            ChatRoomMessageVote[]
+  reactions        MessageReaction[]
 
   @@index([chatRoomId, createdAt])
   @@index([senderId])
+}
+
+model MessageReaction {
+  id        Int             @id @default(autoincrement())
+  messageId Int
+  userId    Int
+  emoji     String
+  createdAt DateTime        @default(now())
+  message   ChatRoomMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
 }
 
 model ChatRoomMessageVote {
@@ -281,6 +326,51 @@ enum ContentType {
   POST_COMMENT
   CHAT_MESSAGE
   PROXIMITY_MESSAGE
+  DIRECT_MESSAGE
+}
+
+enum ConversationStatus {
+  PENDING
+  ACCEPTED
+}
+
+model DirectConversation {
+  id             Int                @id @default(autoincrement())
+  createdAt      DateTime           @default(now())
+  initiatorId    Int
+  participantAId Int
+  participantBId Int
+  status                ConversationStatus @default(PENDING)
+  recipientWasAnonymous Boolean            @default(false)
+  lastReadMsgIdA        Int?
+  lastReadMsgIdB Int?
+  participantA   User               @relation("DMPartA", fields: [participantAId], references: [id])
+  participantB   User               @relation("DMPartB", fields: [participantBId], references: [id])
+  messages       DirectMessage[]
+
+  @@unique([participantAId, participantBId])
+  @@index([participantAId])
+  @@index([participantBId])
+}
+
+model DirectMessage {
+  id             Int                @id @default(autoincrement())
+  createdAt      DateTime           @default(now())
+  content        String?
+  imageUrl       String?
+  conversationId Int
+  senderId       Int
+  replyToId      Int?
+  deleted        Boolean            @default(false)
+  wasAnonymous   Boolean            @default(false)
+  editedAt       DateTime?
+  conversation   DirectConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User               @relation("DMSender", fields: [senderId], references: [id])
+  replyTo        DirectMessage?     @relation("DMReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies        DirectMessage[]    @relation("DMReplies")
+
+  @@index([conversationId, createdAt])
+  @@index([senderId])
 }
 
 model Report {
@@ -374,4 +464,33 @@ model NotificationSentLog {
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([ruleKey, userId])
+}
+
+// ─── Greek House Rating ──────────────────────────────────────────────────────
+
+model CampusEmailDomain {
+  id       Int      @id @default(autoincrement())
+  campusId Int
+  domain   String
+  campus   Location @relation(fields: [campusId], references: [id], onDelete: Cascade)
+
+  @@unique([campusId, domain])
+  @@index([domain])
+}
+
+model GreekHouseVote {
+  id         Int           @id @default(autoincrement())
+  userId     Int
+  locationId Int
+  campusId   Int
+  category   GreekCategory
+  voteType   VoteType
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location   Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, campusId, category, voteType])
+  @@index([locationId])
+  @@index([campusId, category])
 }

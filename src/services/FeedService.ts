@@ -66,13 +66,31 @@ export class FeedService {
     // ── 5. Filter out muted locations ─────────────────────────────────────────
     const visibleLocations = inRange.filter((l) => !mutedIds.has(l.id));
 
-    // ── 6. Posts + result ───────────────────────────────────────────────────
+    // ── 6. Fetch location-based + location-free posts in parallel ──────────
     const locationIds = visibleLocations.map((l) => l.id);
-    const { posts, hasMore } = await postService.getFeedPosts(locationIds, userId, before);
+    const [locResult, freeResult] = await Promise.all([
+      postService.getFeedPosts(locationIds, userId, before),
+      postService.getLocationFreeFeedPosts(userId, userPos.latitude, userPos.longitude, feedRadius, before),
+    ]);
+
+    // Bounding box is a rectangle — refine to actual circle with getDistance
+    const nearbyFreePosts = freeResult.posts.filter((p: any) => {
+      if (p.latitude == null || p.longitude == null) return false;
+      const dist = getDistance(
+        { latitude: userPos.latitude, longitude: userPos.longitude },
+        { latitude: p.latitude, longitude: p.longitude },
+      );
+      return dist <= feedRadius;
+    });
+
+    // Merge and sort by createdAt descending
+    const allPosts = [...locResult.posts, ...nearbyFreePosts].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    );
 
     return {
-      posts,
-      hasMore,
+      posts: allPosts,
+      hasMore: locResult.hasMore || freeResult.hasMore,
       ...(before ? {} : { inRangeLocations: visibleLocations }),
     };
   }

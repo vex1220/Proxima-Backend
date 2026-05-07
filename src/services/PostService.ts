@@ -22,6 +22,8 @@ export class PostService {
     return await postDao.createPost({
       posterId: data.posterId,
       locationId: data.locationId,
+      latitude: data.latitude,
+      longitude: data.longitude,
       content: content ?? "",
       imageUrl: data.imageUrl,
       title,
@@ -131,8 +133,52 @@ export class PostService {
       imageUrl:        p.imageUrl ?? null,
       posterId:        p.posterId,
       posterDisplayId: p.wasAnonymous ? "Anonymous" : p.poster.displayId,
-      locationId:      p.locationId,
-      locationName:    p.location.name,
+      locationId:      p.locationId ?? null,
+      locationName:    p.location?.name ?? "Nearby",
+      createdAt:       p.createdAt,
+      voteCount:       voteCountMap[p.id] ?? 0,
+      userVote:        userVoteMap[p.id] ?? null,
+      commentCount:    commentCountMap[p.id] ?? 0,
+    }));
+
+    return { posts, hasMore };
+  }
+
+  async getLocationFreeFeedPosts(
+    viewerUserId: number,
+    userLat: number,
+    userLng: number,
+    radiusMetres: number,
+    before?: Date,
+  ) {
+    const { posts: rawPosts, hasMore } = await postDao.getLocationFreePosts(userLat, userLng, radiusMetres, before);
+
+    const blockedIds = new Set(await getCachedBlockRelatedUserIds(viewerUserId));
+    const visible = rawPosts.filter(
+      (p) => !blockedIds.has(p.posterId) && !p.poster.deleted,
+    );
+
+    if (visible.length === 0) return { posts: [], hasMore };
+
+    const postIds = visible.map((p) => p.id);
+
+    const [commentCountMap, voteCountMap, userVoteMap] = await Promise.all([
+      postCommentService.getCommentCountsBatch(postIds),
+      postVoteService.getVoteCountsBatch(postIds),
+      postVoteService.getUserVotesForTargets(viewerUserId, postIds),
+    ]);
+
+    const posts = visible.map((p) => ({
+      id:              p.id,
+      title:           p.title,
+      content:         p.content ?? "",
+      imageUrl:        p.imageUrl ?? null,
+      posterId:        p.posterId,
+      posterDisplayId: p.wasAnonymous ? "Anonymous" : p.poster.displayId,
+      locationId:      null as number | null,
+      locationName:    "Nearby",
+      latitude:        p.latitude,
+      longitude:       p.longitude,
       createdAt:       p.createdAt,
       voteCount:       voteCountMap[p.id] ?? 0,
       userVote:        userVoteMap[p.id] ?? null,

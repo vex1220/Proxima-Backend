@@ -20,6 +20,11 @@ export const NotificationType = {
   NEW_COMMENT: "NEW_COMMENT",
   KARMA_MILESTONE: "KARMA_MILESTONE",
   INACTIVE_REMINDER: "INACTIVE_REMINDER",
+  NEW_DM: "NEW_DM",
+  DM_ACCEPTED: "DM_ACCEPTED",
+  NEW_POST_IN_FEED: "NEW_POST_IN_FEED",
+  NEW_CHATROOM_MESSAGE: "NEW_CHATROOM_MESSAGE",
+  NEW_PROXIMITY_MESSAGE: "NEW_PROXIMITY_MESSAGE",
 } as const;
 
 export type NotificationType =
@@ -69,6 +74,17 @@ export interface NotificationContext {
   // ── Karma/vote context ──
   newKarmaTotal?: number;
   voteCount?: number;
+
+  // ── Location activity context ──
+  locationId?: number;
+  locationName?: string;
+  chatRoomId?: number;
+  chatRoomName?: string;
+
+  // ── Proximity message context ──
+  senderLatitude?: number;
+  senderLongitude?: number;
+  senderRadius?: number;
 }
 
 /**
@@ -80,6 +96,9 @@ export const NotificationEvent = {
   COMMENT_CREATED: "COMMENT_CREATED",
   POST_VOTED: "POST_VOTED",
   SCHEDULED_INACTIVE_CHECK: "SCHEDULED_INACTIVE_CHECK",
+  POST_CREATED: "POST_CREATED",
+  CHATROOM_MESSAGE_SENT: "CHATROOM_MESSAGE_SENT",
+  PROXIMITY_MESSAGE_SENT: "PROXIMITY_MESSAGE_SENT",
 } as const;
 
 export type NotificationEvent =
@@ -114,12 +133,19 @@ export interface NotificationRule {
 
   /**
    * Generate a unique key for deduplication.
-   * If this key has been sent before, the notification won't be sent again.
-   * Return null to skip deduplication (always send).
+   * If this key has been sent before (within dedupeWindowMs if set), the
+   * notification won't be sent again. Return null to skip deduplication.
    *
    * Examples:
    *   "karma_milestone:post:42:15"  → only congratulate once per threshold
-   *   "inactive_reminder:user:7"    → only remind once per cycle
+   *   "inactive_reminder:user:7"    → only remind once per window
    */
   dedupeKey: (ctx: NotificationContext) => string | null;
+
+  /**
+   * How long (in ms) the dedup key is valid for.
+   * If undefined, the key is permanent (never send again once sent).
+   * Use this for time-windowed rules like "once every 2 weeks".
+   */
+  dedupeWindowMs?: number;
 }

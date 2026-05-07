@@ -11,12 +11,15 @@ import {
   getSuspendedUsers,
 } from "../services/userService";
 import { getIo } from "../websocket/ioInstance";
+import { patchUserAnonymousMode } from "../websocket/setupSocket";
 import { updateUserProximityRadius, updateUserFeedRadius, setAnonymousModeDao, getNotificationPreferencesDao, updateNotificationPreferencesDao } from "../dao/userServiceDao";
+import { saveOfflineUserLocation } from "../utils/redisUserLocation";
 import { muteLocationDao, unmuteLocationDao, getMutedLocationsDao } from "../dao/MutedLocationDao";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { ProximityMessageService } from "../services/ProximityMessageService";
 import { PostDao } from "../dao/PostDao";
 import { PostCommentService } from "../services/PostCommentService";
+import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
 const proximityMessageService = new ProximityMessageService();
@@ -103,6 +106,9 @@ export async function userDetails(req: Request, res: Response) {
       notifComments: user.preferences?.notifComments ?? true,
       notifKarma: user.preferences?.notifKarma ?? true,
       notifInactiveReminder: user.preferences?.notifInactiveReminder ?? true,
+      notifLocationActivity: user.preferences?.notifLocationActivity ?? true,
+      notifDMs: user.preferences?.notifDMs ?? true,
+      notifProximity: user.preferences?.notifProximity ?? true,
       suspendedUntil: user.suspendedUntil?.toISOString() ?? null,
       suspendedContentPreview: user.suspendedContentPreview ?? null,
     });
@@ -251,6 +257,7 @@ export async function toggleAnonymousMode(req: Request, res: Response) {
       return res.status(400).json({ message: "enabled must be a boolean" });
     }
     await setAnonymousModeDao(user.id, enabled);
+    patchUserAnonymousMode(user.id, enabled);
     return res.status(200).json({ anonymousMode: enabled });
   } catch (error: any) {
     return res.status(400).json({ message: error.message });
@@ -266,11 +273,14 @@ export async function updateNotificationPreferences(req: Request, res: Response)
     const user = req.user;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { notifComments, notifKarma, notifInactiveReminder } = req.body;
+    const { notifComments, notifKarma, notifInactiveReminder, notifLocationActivity, notifDMs, notifProximity } = req.body;
     const update: Record<string, boolean> = {};
     if (typeof notifComments === "boolean") update.notifComments = notifComments;
     if (typeof notifKarma === "boolean") update.notifKarma = notifKarma;
     if (typeof notifInactiveReminder === "boolean") update.notifInactiveReminder = notifInactiveReminder;
+    if (typeof notifLocationActivity === "boolean") update.notifLocationActivity = notifLocationActivity;
+    if (typeof notifDMs === "boolean") update.notifDMs = notifDMs;
+    if (typeof notifProximity === "boolean") update.notifProximity = notifProximity;
 
     if (Object.keys(update).length === 0) {
       return res.status(400).json({ message: "No valid preference fields provided" });
@@ -334,6 +344,23 @@ export async function getMutedLocations(req: Request, res: Response) {
   }
 }
 
+export async function updateLocation(req: Request, res: Response) {
+  try {
+    const user = req.user;
+    if (!user) return res.status(401).json({ message: "Unauthorized" });
+
+    const { latitude, longitude } = req.body;
+    if (typeof latitude !== "number" || typeof longitude !== "number") {
+      return res.status(400).json({ message: "latitude and longitude must be numbers" });
+    }
+
+    await saveOfflineUserLocation(user.id, { latitude, longitude });
+    return res.status(200).json({ message: "Location updated" });
+  } catch (error: any) {
+    return res.status(400).json({ message: error.message });
+  }
+}
+
 export async function adminSuspendUser(req: Request, res: Response) {
   try {
     const { displayId, durationMinutes } = req.body;
@@ -358,6 +385,11 @@ export async function adminSuspendUser(req: Request, res: Response) {
         suspendedUntil: suspendedUntil.toISOString(),
         contentPreview: null,
       });
+    }
+
+    const activeVoiceRoom = await getUserVoiceRoom(targetUser.id);
+    if (activeVoiceRoom) {
+      forceRemoveParticipant(activeVoiceRoom, targetUser.id).catch(() => {});
     }
 
     return res.status(200).json({

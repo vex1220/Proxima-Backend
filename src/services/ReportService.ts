@@ -85,6 +85,20 @@ async function resolveProximityMessage(id: number): Promise<ContentSnapshot | nu
   };
 }
 
+async function resolveDirectMessage(id: number): Promise<ContentSnapshot | null> {
+  const msg = await prisma.directMessage.findUnique({
+    where:   { id, deleted: false },
+    include: { sender: { select: { id: true, displayId: true } } },
+  });
+  if (!msg) return null;
+  return {
+    authorId:        msg.sender.id,
+    authorDisplayId: msg.sender.displayId,
+    content:         msg.content ?? null,
+    imageUrl:        msg.imageUrl ?? null,
+  };
+}
+
 async function resolveContent(
   contentType: ContentType,
   contentId:   number,
@@ -98,6 +112,8 @@ async function resolveContent(
               return resolveChatMessage(contentId);
     case ContentType.PROXIMITY_MESSAGE:
               return resolveProximityMessage(contentId);
+    case ContentType.DIRECT_MESSAGE:
+              return resolveDirectMessage(contentId);
   }
 }
 

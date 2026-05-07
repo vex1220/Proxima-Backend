@@ -108,7 +108,7 @@ const karmaMilestoneRule: NotificationRule = {
 };
 
 // ─── Rule 3: Inactive User Reminder ─────────────────────────────────────────
-// Fires for users who haven't logged in for 48+ hours.
+// Fires for users who haven't logged in for 2+ weeks.
 // This is evaluated by the scheduler, not by a user action.
 
 const inactiveReminderRule: NotificationRule = {
@@ -154,15 +154,102 @@ const inactiveReminderRule: NotificationRule = {
     };
   },
 
-  // Only send one inactive reminder per 48-hour cycle per user.
-  // The scheduler runs every hour, but this key ensures we don't spam.
-  // We use a date bucket so the key expires naturally after the cycle.
+  // Only send one inactive reminder per 2-week window per user.
+  // The window is enforced by the service via dedupeWindowMs — no need
+  // for a time bucket in the key itself.
   dedupeKey(ctx: NotificationContext) {
     if (!ctx.targetUserId) return null;
-    // Create a bucket that changes every 48 hours
-    const bucket = Math.floor(Date.now() / (48 * 60 * 60 * 1000));
-    return `inactive_reminder:user:${ctx.targetUserId}:${bucket}`;
+    return `inactive_reminder:user:${ctx.targetUserId}`;
   },
+
+  dedupeWindowMs: 14 * 24 * 60 * 60 * 1000, // 2 weeks
+};
+
+// ─── Rule 4: New Post in Location Feed ──────────────────────────────────────
+// Fires when a new post is created at a location. Targets all online users
+// at that location (broadcast via WebSocket, not a single-user push).
+
+const newPostInFeedRule: NotificationRule = {
+  name: "new_post_in_feed",
+  events: [NotificationEvent.POST_CREATED],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || !ctx.locationId) return null;
+
+    return {
+      userId: -1, // placeholder — broadcast handles per-user delivery
+      type: NotificationType.NEW_POST_IN_FEED,
+      title: "New post nearby",
+      body: ctx.postTitle
+        ? `New post: "${truncate(ctx.postTitle, 50)}"`
+        : "Someone posted near you",
+      data: { postId: ctx.postId, locationId: ctx.locationId },
+    };
+  },
+
+  dedupeKey() {
+    return null; // every post notifies
+  },
+};
+
+// ─── Rule 5: New Chatroom Message ───────────────────────────────────────────
+// Fires when a message is sent in a chatroom. Targets online users at the
+// location who are NOT currently in that chatroom.
+
+const newChatroomMessageRule: NotificationRule = {
+  name: "new_chatroom_message",
+  events: [NotificationEvent.CHATROOM_MESSAGE_SENT],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || !ctx.locationId || !ctx.chatRoomId) return null;
+
+    return {
+      userId: -1, // placeholder — broadcast handles per-user delivery
+      type: NotificationType.NEW_CHATROOM_MESSAGE,
+      title: ctx.chatRoomName
+        ? `New message in ${truncate(ctx.chatRoomName, 40)}`
+        : "New chatroom message",
+      body: "Tap to join the conversation",
+      data: { chatRoomId: ctx.chatRoomId, locationId: ctx.locationId },
+    };
+  },
+
+  dedupeKey() {
+    return null; // every message notifies
+  },
+};
+
+// ─── Rule 6: New Proximity Message ──────────────────────────────────────────
+// Fires when a proximity message is sent. Targets offline users within the
+// sender's proximity radius.
+
+const PROXIMITY_MESSAGE_DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+const newProximityMessageRule: NotificationRule = {
+  name: "new_proximity_message",
+  events: [NotificationEvent.PROXIMITY_MESSAGE_SENT],
+  enabled: true,
+
+  evaluate(ctx: NotificationContext) {
+    if (!ctx.actorId || ctx.senderLatitude == null || ctx.senderLongitude == null) return null;
+
+    return {
+      userId: -1, // broadcast — offline push handles per-user delivery
+      type: NotificationType.NEW_PROXIMITY_MESSAGE,
+      title: "New message nearby",
+      body: "Someone sent a message near you",
+      data: {},
+    };
+  },
+
+  dedupeKey(ctx: NotificationContext) {
+    if (!ctx.actorId) return null;
+    return `proximity_message:sender:${ctx.actorId}`;
+  },
+
+  dedupeWindowMs: PROXIMITY_MESSAGE_DEDUP_WINDOW_MS,
 };
 
 // =============================================================================
@@ -179,6 +266,9 @@ export const NOTIFICATION_RULES: NotificationRule[] = [
   newCommentRule,
   karmaMilestoneRule,
   inactiveReminderRule,
+  newPostInFeedRule,
+  newChatroomMessageRule,
+  newProximityMessageRule,
 ];
 
 /**

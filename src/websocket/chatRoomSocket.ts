@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 import { UserWithPreferences } from "../models/userTypes";
-import { getLastFiftyMessages } from "../services/chatRoomService";
+import { getLastMessages } from "../services/chatRoomService";
 import { ChatRoomMessageService } from "../services/ChatRoomMessageService";
 import { updateUserKarma } from "../services/userService";
 import { VoteService } from "../services/VoteService";
@@ -9,6 +9,10 @@ import { VoteModel, Vote } from "../models/voteTypes";
 import { constructVote, validateNotOwnPost } from "../utils/voteUtils";
 import { validateImageUrl } from "../utils/validateImageUrl";
 import { getCachedSuspensionStatus } from "../utils/redisSuspension";
+import { enqueueModerationJob } from "../moderation";
+import { emitNotificationAsync, NotificationEvent } from "../notifications";
+import { PerfTimer } from "../utils/perfTimer";
+import { getVoiceParticipants } from "../services/voiceService";
 import { enqueueMessageWrite } from "../jobs/messageWriteQueue";
 
 function getUserCount(io: Server, roomId: string) {
@@ -32,25 +36,25 @@ export function setupChatRoomSocket(
   userSocketMap: { [userId: number]: { socketId: string; proximityRadius: number } },
   blockedUserIds: { set: Set<number> },
 ) {
-  // Track rooms where this socket has already passed range verification.
-  // Once a user successfully joins a room, we skip the full
-  // verifyChatRoomAndUserInRange check on subsequent actions (send, vote,
-  // delete) and just use the cached chatroom data. This avoids redundant
-  // Redis + DB lookups on every single message send.
   const verifiedRooms = new Set<number>();
+  const cachedChatRooms = new Map<number, any>();
 
-  // Cache suspension status in-memory for the lifetime of this socket
-  // connection to avoid a Redis round-trip on every message send. Refreshed
-  // every 30 seconds in case the status changes mid-session.
   let cachedSuspension: { suspended: boolean; until: Date | null } | null = null;
   let suspensionCachedAt = 0;
-  const SUSPENSION_CACHE_TTL = 30_000;
+  const SUSPENSION_CACHE_TTL = 300_000;
+
+  let cachedBlockedUserIds: Set<number> | null = null;
+  let blockListCachedAt = 0;
+  const BLOCK_LIST_CACHE_TTL = 60_000;
 
 
   socket.on("joinRoom", async (roomId: number) => {
+    const timer = new PerfTimer("joinRoom");
     try {
       const chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
       verifiedRooms.add(roomId);
+      cachedChatRooms.set(roomId, chatRoom);
+      timer.mark("verifyRange");
 
       socket.join(String(roomId));
 
@@ -62,9 +66,17 @@ export function setupChatRoomSocket(
         userCount,
         message: `${user.displayId} has joined room ${chatRoom.name}`,
       });
+      timer.mark("joinAndNotify");
 
-      const lastMessages = await getLastFiftyMessages(roomId, user.id);
-      socket.emit("joinedRoom", { chatRoom, lastMessages });
+      const [lastMessages, voiceParticipants] = await Promise.all([
+        getLastMessages(roomId, user.id),
+        getVoiceParticipants(roomId).catch(() => []),
+      ]);
+      timer.mark("loadHistory");
+
+      socket.emit("joinedRoom", { chatRoom, lastMessages, voiceParticipants });
+      timer.mark("emitToClient");
+      timer.end();
     } catch (error: any) {
       socket.emit("error", error.message || "An unexpected error has occurred");
     }
@@ -74,7 +86,10 @@ export function setupChatRoomSocket(
     socket.rooms.forEach((roomId) => {
       if (roomId !== socket.id) {
         const numericId = Number(roomId);
-        if (!isNaN(numericId)) verifiedRooms.delete(numericId);
+        if (!isNaN(numericId)) {
+          verifiedRooms.delete(numericId);
+          cachedChatRooms.delete(numericId);
+        }
         const userCount = getUserCount(io, roomId) - 1;
         io.to(roomId).emit("userLeft", {
           userCount,
@@ -99,6 +114,8 @@ export function setupChatRoomSocket(
     });
   });
 
+  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId }) => {
+    const timer = new PerfTimer("sendMessage");
   socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId, replyPreview, tempId: clientTempId }) => {
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
@@ -107,6 +124,7 @@ export function setupChatRoomSocket(
         socket.emit("error", "Message too long");
         return;
       }
+      timer.mark("validation");
 
       const now = Date.now();
       if (!cachedSuspension || now - suspensionCachedAt > SUSPENSION_CACHE_TTL) {
@@ -116,13 +134,47 @@ export function setupChatRoomSocket(
       if (cachedSuspension.suspended) {
         return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
       }
+      timer.mark("suspensionCheck");
 
+      let chatRoom;
+      if (cachedChatRooms.has(roomId)) {
+        chatRoom = cachedChatRooms.get(roomId);
+      } else if (verifiedRooms.has(roomId)) {
+        const cached = await getCachedChatRoomWithLocation(roomId);
+        chatRoom = cached?.chatRoom;
+        if (chatRoom) cachedChatRooms.set(roomId, chatRoom);
+      }
+      if (!chatRoom) {
+        chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
+        verifiedRooms.add(roomId);
+        cachedChatRooms.set(roomId, chatRoom);
+      }
+
+      const wasAnonymous = user.preferences?.anonymousMode ?? true;
+
+      const now2 = Date.now();
+      if (!cachedBlockedUserIds || now2 - blockListCachedAt > BLOCK_LIST_CACHE_TTL) {
+        cachedBlockedUserIds = new Set(await getCachedBlockRelatedUserIds(user.id));
+        blockListCachedAt = now2;
+      }
+      const blockedUserIds = cachedBlockedUserIds;
+
+      const replyData = replyToId != null
+        ? await chatRoomMessageService.getReplyDataById(replyToId)
+        : null;
+
+      if (replyToId != null) {
+        if (!replyData) throw new Error("The message you are replying to does not exist");
+        if (replyData.chatRoomId !== chatRoom.id)
+          throw new Error("Cannot reply to a message in a different chatroom");
+        if (replyData.deleted) throw new Error("Cannot reply to a deleted message");
       const wasAnonymous = user.preferences?.anonymousMode ?? true;
 
       if (!verifiedRooms.has(roomId)) {
         await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
       }
+      timer.mark("roomAndReplyLookup");
 
       const tempId = nextTempId();
       const messageToSend = {
@@ -145,7 +197,62 @@ export function setupChatRoomSocket(
             }
           : null,
       };
+      timer.mark("buildMessage");
 
+      // Build a reverse map: socketId → userId for block filtering
+      const socketToUserId: { [socketId: string]: number } = {};
+      for (const [uid, entry] of Object.entries(userSocketMap)) {
+        socketToUserId[entry.socketId] = Number(uid);
+      }
+      timer.mark("buildSocketMap");
+
+      // Broadcast immediately — before the DB write
+      const roomSockets = io.sockets.adapter.rooms.get(String(chatRoom.id));
+      if (roomSockets) {
+        for (const socketId of roomSockets) {
+          const recipientUserId = socketToUserId[socketId];
+          if (recipientUserId !== undefined && blockedUserIds.has(recipientUserId)) {
+            continue;
+          }
+          io.to(socketId).emit("receiveMessage", messageToSend);
+        }
+      }
+      timer.mark("broadcast");
+
+      // Persist asynchronously — announce real ID when done
+      try {
+        const message = await chatRoomMessageService.createFast(
+          chatRoom.id,
+          user.id,
+          content,
+          imageUrl,
+          replyToId ?? undefined,
+          wasAnonymous,
+        );
+        timer.mark("dbWrite");
+        io.to(String(chatRoom.id)).emit("messageIdAssigned", { tempId, realId: message.id });
+        timer.mark("idAssigned");
+        enqueueModerationJob({
+          contentType: "CHAT_MESSAGE",
+          contentId: message.id,
+          userId: user.id,
+          text: content,
+          imageUrl: message.imageUrl ?? undefined,
+          socketMeta: {
+            type: "CHAT_MESSAGE",
+            chatRoomId: chatRoom.id,
+          },
+        });
+        timer.mark("moderationEnqueue");
+        emitNotificationAsync({
+          event: NotificationEvent.CHATROOM_MESSAGE_SENT,
+          actorId: user.id,
+          locationId: chatRoom.locationId,
+          chatRoomId: chatRoom.id,
+          chatRoomName: chatRoom.name,
+        });
+        timer.end();
+      } catch {
       // Broadcast immediately — before the DB write
       io.to(String(roomId)).emit("receiveMessage", messageToSend);
 
@@ -169,15 +276,18 @@ export function setupChatRoomSocket(
 
   socket.on("deleteMessage", async ({ roomId, messageId }) => {
     try {
-      // Fast path: skip full range re-verification if already verified
-      let chatRoom;
-      if (verifiedRooms.has(roomId)) {
-        const cached = await getCachedChatRoomWithLocation(roomId);
-        chatRoom = cached?.chatRoom;
-        if (!chatRoom) throw new Error("Chat room not found");
-      } else {
+      let chatRoom = cachedChatRooms.get(roomId);
+      if (!chatRoom) {
+        if (verifiedRooms.has(roomId)) {
+          const cached = await getCachedChatRoomWithLocation(roomId);
+          chatRoom = cached?.chatRoom;
+          if (chatRoom) cachedChatRooms.set(roomId, chatRoom);
+        }
+      }
+      if (!chatRoom) {
         chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
+        cachedChatRooms.set(roomId, chatRoom);
       }
       const message = await getAndVerifyMessage(messageId);
 
@@ -195,15 +305,18 @@ export function setupChatRoomSocket(
 
   socket.on("voteMessage", async ({ roomId, messageId, value }) => {
     try {
-      // Fast path: skip full range re-verification if already verified
-      let chatRoom;
-      if (verifiedRooms.has(roomId)) {
-        const cached = await getCachedChatRoomWithLocation(roomId);
-        chatRoom = cached?.chatRoom;
-        if (!chatRoom) throw new Error("Chat room not found");
-      } else {
+      let chatRoom = cachedChatRooms.get(roomId);
+      if (!chatRoom) {
+        if (verifiedRooms.has(roomId)) {
+          const cached = await getCachedChatRoomWithLocation(roomId);
+          chatRoom = cached?.chatRoom;
+          if (chatRoom) cachedChatRooms.set(roomId, chatRoom);
+        }
+      }
+      if (!chatRoom) {
         chatRoom = await verifyChatRoomAndUserInRange(roomId, user.id, user.isAdmin);
         verifiedRooms.add(roomId);
+        cachedChatRooms.set(roomId, chatRoom);
       }
       const message = await getAndVerifyMessage(messageId);
 
