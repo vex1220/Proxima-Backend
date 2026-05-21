@@ -48,9 +48,46 @@ export function setupDMSocket(
   let blockListCachedAt = 0;
   const BLOCK_LIST_CACHE_TTL = 60_000;
 
+  // Conversation cache: skips the Prisma round-trip on every send / typing /
+  // edit / delete / markRead. Short TTL because conversation.status can change
+  // (PENDING → ACCEPTED) via the REST accept endpoint, which doesn't run here.
+  const cachedConversations = new Map<number, { conv: Awaited<ReturnType<typeof getConversationById>>; cachedAt: number }>();
+  const CONVERSATION_CACHE_TTL = 30_000;
+
+  // Recipient block lists: per (recipient) Set, 60s TTL. Mirrors the sender
+  // cache above. Without it, every DM send paid one Redis round-trip.
+  const cachedRecipientBlocks = new Map<number, { ids: Set<number>; cachedAt: number }>();
+  const RECIPIENT_BLOCK_TTL = 60_000;
+
+  const getCachedConversation = async (conversationId: number) => {
+    const entry = cachedConversations.get(conversationId);
+    if (entry && Date.now() - entry.cachedAt < CONVERSATION_CACHE_TTL) {
+      return entry.conv;
+    }
+    const conv = await getConversationById(conversationId);
+    if (conv) {
+      cachedConversations.set(conversationId, { conv, cachedAt: Date.now() });
+    }
+    return conv;
+  };
+
+  const invalidateConversation = (conversationId: number) => {
+    cachedConversations.delete(conversationId);
+  };
+
+  const getCachedRecipientBlocks = async (recipientId: number): Promise<Set<number>> => {
+    const entry = cachedRecipientBlocks.get(recipientId);
+    if (entry && Date.now() - entry.cachedAt < RECIPIENT_BLOCK_TTL) {
+      return entry.ids;
+    }
+    const ids = new Set(await getCachedBlockRelatedUserIds(recipientId));
+    cachedRecipientBlocks.set(recipientId, { ids, cachedAt: Date.now() });
+    return ids;
+  };
+
   socket.on("joinDMConversation", async ({ conversationId }) => {
     try {
-      const conversation = await getConversationById(conversationId);
+      const conversation = await getCachedConversation(conversationId);
       if (!conversation) return;
 
       const isParticipant =
@@ -90,7 +127,7 @@ export function setupDMSocket(
         return socket.emit("suspended", { suspendedUntil: cachedSuspension.until!.toISOString() });
       }
 
-      const conversation = await getConversationById(conversationId);
+      let conversation = await getCachedConversation(conversationId);
       if (!conversation) {
         return socket.emit("error", "Conversation not found");
       }
@@ -103,7 +140,14 @@ export function setupDMSocket(
       }
 
       if (conversation.status === "PENDING" && conversation.initiatorId !== user.id) {
-        return socket.emit("error", "You must accept the conversation before sending messages");
+        // Cached status might be stale (user just accepted via REST). Force a
+        // single fresh read before giving up.
+        invalidateConversation(conversationId);
+        conversation = await getCachedConversation(conversationId);
+        if (!conversation) return socket.emit("error", "Conversation not found");
+        if (conversation.status === "PENDING" && conversation.initiatorId !== user.id) {
+          return socket.emit("error", "You must accept the conversation before sending messages");
+        }
       }
 
       const otherUserId =
@@ -120,7 +164,7 @@ export function setupDMSocket(
         return socket.emit("error", "Cannot message this user");
       }
 
-      const recipientBlockIds = new Set(await getCachedBlockRelatedUserIds(otherUserId));
+      const recipientBlockIds = await getCachedRecipientBlocks(otherUserId);
       if (recipientBlockIds.has(user.id)) {
         return socket.emit("error", "Cannot message this user");
       }
@@ -222,7 +266,7 @@ export function setupDMSocket(
     try {
       if (!conversationId || !messageId) return;
 
-      const conversation = await getConversationById(conversationId);
+      const conversation = await getCachedConversation(conversationId);
       if (!conversation) return;
 
       const isParticipant =
@@ -251,7 +295,7 @@ export function setupDMSocket(
         return socket.emit("error", "Invalid message content");
       }
 
-      const conversation = await getConversationById(conversationId);
+      const conversation = await getCachedConversation(conversationId);
       if (!conversation) return;
 
       const isParticipant =
@@ -285,7 +329,7 @@ export function setupDMSocket(
     try {
       if (!conversationId || !lastMessageId) return;
 
-      const conversation = await getConversationById(conversationId);
+      const conversation = await getCachedConversation(conversationId);
       if (!conversation) return;
 
       const isParticipant =
@@ -309,7 +353,7 @@ export function setupDMSocket(
 
     io.to(`dm:${conversationId}`).emit("dmTyping", payload);
 
-    getConversationById(conversationId).then((conversation) => {
+    getCachedConversation(conversationId).then((conversation) => {
       if (!conversation) return;
       const otherUserId =
         conversation.participantAId === user.id
