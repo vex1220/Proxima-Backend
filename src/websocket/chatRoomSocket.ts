@@ -107,7 +107,7 @@ export function setupChatRoomSocket(
     });
   });
 
-  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId }) => {
+  socket.on("sendMessage", async ({ roomId, content, imageUrl: rawImageUrl, replyToId, clientTempId }) => {
     const timer = new PerfTimer("sendMessage");
     try {
       const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
@@ -163,7 +163,7 @@ export function setupChatRoomSocket(
       }
       timer.mark("roomAndReplyLookup");
 
-      const tempId = Date.now();
+      const tempId = typeof clientTempId === "number" ? clientTempId : Date.now();
       const messageToSend = {
         chatRoomId: chatRoom.id,
         content,

@@ -85,6 +85,8 @@ export class LocationService {
         type: location.type,
         greekCategory: location.greekCategory,
         campusLocationId: location.campusLocationId,
+        imageUrl: location.imageUrl,
+        thumbnailUrl: location.thumbnailUrl,
         chatRooms: locationChatRooms,
         locationPosts,
     }

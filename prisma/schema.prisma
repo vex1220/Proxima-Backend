@@ -102,6 +102,8 @@ model Location {
   longitude        Float?
   size             Int            @default(0)
   type             LocationType   @default(NONE)
+  imageUrl         String?
+  thumbnailUrl     String?
   greekCategory    GreekCategory?
   campusLocationId Int?
   campusLocation   Location?      @relation("CampusGreekHouses", fields: [campusLocationId], references: [id])
