@@ -188,6 +188,37 @@ export class PostService {
     return { posts, hasMore };
   }
 
+  /**
+   * Minimal post payload for the public share-link preview (web fallback +
+   * OpenGraph scrapers). Returns null when the post is missing, soft-deleted,
+   * or hasn't been moderation-approved yet — we don't want unmoderated content
+   * leaking into link previews on Snapchat / iMessage / etc.
+   */
+  async getPublicPostPreview(id: number) {
+    const post = await postDao.getPostById(id);
+    if (!post) return null;
+    if (post.deleted) return null;
+    if (post.moderationStatus !== "APPROVED") return null;
+
+    const SNIPPET_MAX = 200;
+    const rawContent = post.content ?? "";
+    const contentSnippet =
+      rawContent.length > SNIPPET_MAX
+        ? rawContent.slice(0, SNIPPET_MAX).trimEnd() + "…"
+        : rawContent;
+
+    return {
+      id: post.id,
+      title: post.title,
+      contentSnippet,
+      imageUrl: post.imageUrl ?? null,
+      posterDisplayId: (post as any).wasAnonymous
+        ? "Anonymous"
+        : post.poster.displayId,
+      createdAt: post.createdAt,
+    };
+  }
+
   /** Returns a post and its comments, with blocked users' comments filtered out */
   async getPostandPostCommentsById(id: number, userId?: number) {
     const post = await postDao.getPostById(id);

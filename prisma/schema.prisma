@@ -42,6 +42,14 @@ model User {
   dmConversationsB DirectConversation[] @relation("DMPartB")
   directMessages   DirectMessage[]      @relation("DMSender")
   greekHouseVotes  GreekHouseVote[]
+
+  // School verification: the .edu the user proved ownership of, and the campus it maps to.
+  // Decoupled from `email` (the login email) so personal-email users can unlock campus features.
+  verifiedEmail    String?   @unique
+  verifiedCampusId Int?
+  verifiedCampus   Location? @relation("CampusVerifiedUsers", fields: [verifiedCampusId], references: [id])
+
+  @@index([verifiedCampusId])
 }
 
 model User_Settings {
@@ -104,6 +112,7 @@ model Location {
   type             LocationType   @default(NONE)
   imageUrl         String?
   thumbnailUrl     String?
+  themeBrand       String?        // For CAMPUS rows: the theme brand verified students of this campus unlock (e.g. "fsu"). null = no custom theme.
   greekCategory    GreekCategory?
   campusLocationId Int?
   campusLocation   Location?      @relation("CampusGreekHouses", fields: [campusLocationId], references: [id])
@@ -113,6 +122,7 @@ model Location {
   mutedBy          MutedLocation[]
   greekHouseVotes    GreekHouseVote[]
   campusEmailDomains CampusEmailDomain[]
+  verifiedUsers      User[]              @relation("CampusVerifiedUsers")
 
   @@index([latitude, longitude])
   @@index([type])

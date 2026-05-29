@@ -22,6 +22,7 @@ import {
   adminGetSuspendedUsers,
 } from "../controllers/userController";
 import { blockUser, unblockUser, getBlockList } from "../controllers/blockController";
+import { sendSchoolCode, confirmSchoolCode } from "../controllers/campusVerificationController";
 
 const router = Router();
 
@@ -62,6 +63,32 @@ router.post("/anonymousMode", toggleAnonymousMode);
 
 // Notification preferences
 router.post("/notification-preferences", updateNotificationPreferences);
+
+// School (campus) email verification
+router.post(
+  "/verify-school/send",
+  [
+    body("schoolEmail")
+      .isEmail()
+      .withMessage("Valid email required")
+      .bail()
+      .custom((v: string) => v.trim().toLowerCase().endsWith(".edu"))
+      .withMessage("Must be a school (.edu) email"),
+    validateRequest,
+  ],
+  sendSchoolCode,
+);
+router.post(
+  "/verify-school/confirm",
+  [
+    body("code")
+      .isString()
+      .isLength({ min: 6, max: 6 })
+      .withMessage("6-digit code required"),
+    validateRequest,
+  ],
+  confirmSchoolCode,
+);
 
 // Background location update
 router.post("/update-location", updateLocation);

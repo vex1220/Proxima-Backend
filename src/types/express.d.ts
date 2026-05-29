@@ -1,6 +1,4 @@
-import { User, User_Settings } from "@prisma/client";
-
-type UserWithPreferences = User & { preferences?: User_Settings | null };
+import { UserWithPreferences } from "../models/userTypes";
 
 declare global {
   namespace Express {

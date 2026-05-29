@@ -119,7 +119,10 @@ export async function setUserDisplayIdDao(name: string, id: number) {
 export async function getUserByIdDao(id: number) {
   return prisma.user.findUnique({
     where: { id },
-    include: { preferences: true },
+    include: {
+      preferences: true,
+      verifiedCampus: { select: { name: true, themeBrand: true } },
+    },
   });
 }
 
@@ -161,6 +164,21 @@ export async function setUserVerifiedDao(id: number) {
     where: { id },
     data: { isVerified: true },
   });
+}
+
+export async function setUserVerifiedCampusDao(
+  id: number,
+  campusId: number,
+  verifiedEmail: string,
+) {
+  return await prisma.user.update({
+    where: { id },
+    data: { verifiedCampusId: campusId, verifiedEmail },
+  });
+}
+
+export async function getUserByVerifiedEmailDao(verifiedEmail: string) {
+  return prisma.user.findUnique({ where: { verifiedEmail } });
 }
 
 export async function updateUserPasswordDao(id: number, hashedPassword: string) {

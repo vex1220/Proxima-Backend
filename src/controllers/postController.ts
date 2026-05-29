@@ -1,3 +1,4 @@
+import { Request, Response } from "express";
 import { PostService } from "../services/PostService";
 import { LocationService } from "../services/LocationService";
 import { verifyLocationAndUserInRange } from "../utils/locationUtils";
@@ -122,6 +123,23 @@ export const createPost = withAuth(async (req, res) => {
     return res.status(400).json({ message: error.message });
   }
 });
+
+export const publicPostPreview = async (req: Request, res: Response) => {
+  try {
+    const postId = Number(req.params.postId);
+    if (!postId || Number.isNaN(postId)) {
+      return res.status(400).json({ message: "invalid post id" });
+    }
+    const preview = await postService.getPublicPostPreview(postId);
+    if (!preview) {
+      return res.status(404).json({ message: "post not found" });
+    }
+    res.setHeader("Cache-Control", "public, max-age=60, s-maxage=300");
+    return res.status(200).json({ payload: preview });
+  } catch (error: any) {
+    return res.status(500).json({ message: error.message });
+  }
+};
 
 export const postDetails = withAuth(async (req, res) => {
   try {

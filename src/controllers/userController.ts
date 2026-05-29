@@ -20,6 +20,7 @@ import { ProximityMessageService } from "../services/ProximityMessageService";
 import { PostDao } from "../dao/PostDao";
 import { PostCommentService } from "../services/PostCommentService";
 import { getUserVoiceRoom, forceRemoveParticipant } from "../services/voiceService";
+import { resolveCampusForEmail } from "../services/campusVerificationService";
 
 const chatRoomMessageService = new ChatRoomMessageService();
 const proximityMessageService = new ProximityMessageService();
@@ -93,6 +94,22 @@ export async function userDetails(req: Request, res: Response) {
         .json({ message: "request from user that does not exist" });
     }
 
+    // Effective campus: an explicitly verified campus takes precedence; otherwise
+    // fall back to the campus the user's *login* email maps to, so existing
+    // school-email sign-ups keep their access (no regression). Drives the theme
+    // picker and the "Verify School" affordance on the client.
+    let verifiedCampusId = user.verifiedCampusId ?? null;
+    let verifiedCampusName = user.verifiedCampus?.name ?? null;
+    let themeBrand = user.verifiedCampus?.themeBrand ?? null;
+    if (!verifiedCampusId && user.email) {
+      const regCampus = await resolveCampusForEmail(user.email);
+      if (regCampus) {
+        verifiedCampusId = regCampus.id;
+        verifiedCampusName = regCampus.name;
+        themeBrand = regCampus.themeBrand;
+      }
+    }
+
     return res.status(200).json({
       id: user.id,
       username: user.displayId,
@@ -101,6 +118,9 @@ export async function userDetails(req: Request, res: Response) {
       message: "user details retrieved",
       isAdmin: user.isAdmin,
       isEmailVerified: user.isVerified,
+      verifiedCampusId,
+      verifiedCampusName,
+      themeBrand,
       feedRadius: user.preferences?.feedRadius ?? 3219,
       anonymousMode: user.preferences?.anonymousMode ?? true,
       notifComments: user.preferences?.notifComments ?? true,

@@ -8,6 +8,7 @@ import {
   commentOnPost,
   createPost,
   postDetails,
+  publicPostPreview,
   voteOnComment,
   voteOnPost,
   deletePostVote,
@@ -17,6 +18,11 @@ import {
 } from "../controllers/postController";
 
 const router = Router();
+
+// Public preview — for the web share-link page (OG meta tags). No auth so
+// link scrapers (Snapchat, iMessage, Facebook bot) can render previews.
+// Declared BEFORE the auth middleware and BEFORE /:postId so this route wins.
+router.get("/:postId/public", publicPostPreview);
 
 router.use(authenticateToken);
 

@@ -22,10 +22,16 @@ async function isEligible(
   userEmail: string,
   isAdmin: boolean,
   location: any,
+  verifiedCampusId?: number | null,
   allowedDomains?: string[],
 ): Promise<boolean> {
   if (isAdmin) return true;
   if (!location.campusLocationId) return false;
+
+  // Verified students vote on their own campus's houses regardless of location.
+  if (verifiedCampusId && location.campusLocationId === verifiedCampusId) {
+    return true;
+  }
 
   if (allowedDomains && allowedDomains.length > 0) {
     const emailLower = userEmail.toLowerCase();
@@ -71,7 +77,7 @@ export async function voteOnGreekHouse(req: Request, res: Response) {
       return res.status(400).json({ message: "This location is not a rateable Greek house" });
     }
 
-    const eligible = await isEligible(user.id, user.email, !!user.isAdmin, location);
+    const eligible = await isEligible(user.id, user.email, !!user.isAdmin, location, user.verifiedCampusId);
     if (!eligible) {
       return res.status(403).json({ message: "You must be in range or have a matching campus email to vote" });
     }

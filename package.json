@@ -9,6 +9,7 @@
     "start": "prisma db push --accept-data-loss && node dist/index.js",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
+    "seed:campuses": "ts-node prisma/seedCampuses.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {
