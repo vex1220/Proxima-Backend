@@ -356,6 +356,15 @@ model DirectConversation {
   recipientWasAnonymous Boolean            @default(false)
   lastReadMsgIdA        Int?
   lastReadMsgIdB Int?
+  // Snapshot of the content that sparked this conversation (set once, at creation).
+  // Snapshot is the source of truth for display; originType/originId are a reference
+  // back to the source for future use. All null on conversations created before this.
+  originType            ContentType?
+  originId              Int?
+  originText            String?
+  originImageUrl        String?
+  originAuthorDisplayId String?
+  originLabel           String?
   participantA   User               @relation("DMPartA", fields: [participantAId], references: [id])
   participantB   User               @relation("DMPartB", fields: [participantBId], references: [id])
   messages       DirectMessage[]

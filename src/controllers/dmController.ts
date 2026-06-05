@@ -7,6 +7,7 @@ import {
   deleteConversation,
 } from "../dao/DirectConversationDao";
 import { DirectMessageService } from "../services/DirectMessageService";
+import { buildDmOriginSnapshot } from "../services/dmOriginService";
 import { getCachedBlockRelatedUserIds } from "../dao/BlockDao";
 import { getUserByDisplayId, getUserById } from "../services/userService";
 import { getIo } from "../websocket/ioInstance";
@@ -56,7 +57,7 @@ export async function startConversation(req: Request, res: Response) {
     const user = req.user;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
 
-    const { displayId, userId: targetUserId } = req.body;
+    const { displayId, userId: targetUserId, origin } = req.body;
     if (!displayId && !targetUserId) {
       return res.status(400).json({ message: "displayId or userId is required" });
     }
@@ -80,7 +81,12 @@ export async function startConversation(req: Request, res: Response) {
       return res.status(403).json({ message: "Cannot message this user" });
     }
 
-    const conversation = await getOrCreateConversation(user.id, otherUser.id);
+    // Snapshot the content that sparked this DM (null when absent/invalid — the
+    // conversation still starts, just without a context card). Only consulted on
+    // first creation; repeat DMs to the same user keep the original spark.
+    const originSnapshot = await buildDmOriginSnapshot(origin, otherUser.id);
+
+    const conversation = await getOrCreateConversation(user.id, otherUser.id, originSnapshot);
     const full = await getConversationById(conversation.id);
     if (!full) return res.status(404).json({ message: "Conversation not found" });
 

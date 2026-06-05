@@ -1,12 +1,36 @@
 import { prisma } from "../utils/prisma";
+import type { DmOriginSnapshot } from "../services/dmOriginService";
 
 function canonicalPair(userAId: number, userBId: number): [number, number] {
   return userAId < userBId ? [userAId, userBId] : [userBId, userAId];
 }
 
+// Shapes the denormalized origin columns into the `origin` object the client renders,
+// or null when the conversation has no recorded origin (created before this feature, or
+// started without a content context such as from a voice participant).
+function shapeOrigin(c: {
+  originType: any;
+  originId: number | null;
+  originText: string | null;
+  originImageUrl: string | null;
+  originAuthorDisplayId: string | null;
+  originLabel: string | null;
+}) {
+  if (!c.originType || c.originId == null) return null;
+  return {
+    type: c.originType,
+    id: c.originId,
+    text: c.originText,
+    imageUrl: c.originImageUrl,
+    authorDisplayId: c.originAuthorDisplayId,
+    label: c.originLabel,
+  };
+}
+
 export async function getOrCreateConversation(
   initiatorId: number,
   otherUserId: number,
+  origin?: DmOriginSnapshot | null,
 ) {
   const [participantAId, participantBId] = canonicalPair(initiatorId, otherUserId);
 
@@ -19,25 +43,43 @@ export async function getOrCreateConversation(
     where: { userId: otherUserId },
     select: { anonymousMode: true },
   });
+  const recipientWasAnonymous = recipientSettings?.anonymousMode ?? false;
 
   return prisma.directConversation.create({
     data: {
       initiatorId,
       participantAId,
       participantBId,
-      recipientWasAnonymous: recipientSettings?.anonymousMode ?? false,
+      recipientWasAnonymous,
+      ...(origin
+        ? {
+            originType: origin.originType,
+            originId: origin.originId,
+            originText: origin.originText,
+            originImageUrl: origin.originImageUrl,
+            // Finalize masking: hide the author if the content was anonymous OR the
+            // recipient is in anonymous mode, so the stored label never leaks a name.
+            originAuthorDisplayId:
+              origin.contentWasAnonymous || recipientWasAnonymous
+                ? "Anonymous"
+                : origin.authorDisplayId,
+            originLabel: origin.originLabel,
+          }
+        : {}),
     },
   });
 }
 
 export async function getConversationById(id: number) {
-  return prisma.directConversation.findUnique({
+  const conversation = await prisma.directConversation.findUnique({
     where: { id },
     include: {
       participantA: { select: { id: true, displayId: true, deleted: true } },
       participantB: { select: { id: true, displayId: true, deleted: true } },
     },
   });
+  if (!conversation) return null;
+  return { ...conversation, origin: shapeOrigin(conversation) };
 }
 
 export async function getConversationByParticipants(userAId: number, userBId: number) {
@@ -96,6 +138,7 @@ export async function getInboxForUser(userId: number) {
         status: c.status,
         initiatorId: c.initiatorId,
         otherUser: maskedOtherUser,
+        origin: shapeOrigin(c),
         lastMessage: lastMsg
           ? {
               id: lastMsg.id,

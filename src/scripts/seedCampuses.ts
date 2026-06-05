@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { prisma } from "../src/utils/prisma";
+import { prisma } from "../utils/prisma";
 
 /**
  * Idempotent campus onboarding seed.
