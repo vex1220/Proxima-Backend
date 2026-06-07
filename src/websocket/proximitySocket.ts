@@ -109,7 +109,7 @@ export function setupProximitySocket(
 
   socket.on(
     "sendProximityMessage",
-    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId }) => {
+    async ({ latitude, longitude, content, imageUrl: rawImageUrl, replyToId, clientTempId }) => {
       const timer = new PerfTimer("sendProximityMessage");
       try {
         const imageUrl = validateImageUrl(rawImageUrl) ?? undefined;
@@ -146,7 +146,10 @@ export function setupProximitySocket(
 
         const recipientIds = [user.id, ...cachedMutualUserIds];
         const wasAnonymous = user.preferences?.anonymousMode ?? true;
-        const tempId = Date.now();
+        // Echo the client's temp id back (when provided) so the sender's
+        // optimistic placeholder reconciles by id match — same contract as
+        // chatRoomSocket's sendMessage.
+        const tempId = typeof clientTempId === "number" ? clientTempId : Date.now();
 
         const replyTo = replyData
           ? {
